@@ -1,0 +1,15 @@
+#!/bin/sh
+case "$INTERFACE:$ACTION" in
+ wan:ifup|wan:ifupdate|wwan:ifup|wwan:ifupdate)
+  setsid /usr/sbin/knx-wg-refresh --force </dev/null >/dev/null 2>&1 &
+  exit 0
+  ;;
+esac
+[ "$INTERFACE" = wg_home ] || exit 0
+ip -4 route replace unreachable default table 189 metric 42760
+case "$ACTION" in
+ ifup|ifupdate)
+  ip -4 route replace @HOME_CIDR@ dev wg_home table 189
+  setsid /usr/sbin/knx-wg-refresh --force </dev/null >/dev/null 2>&1 &
+  ;;
+esac

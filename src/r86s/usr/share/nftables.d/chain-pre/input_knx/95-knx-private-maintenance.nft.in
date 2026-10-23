@@ -1,0 +1,1 @@
+iifname "wg_customers" iifname @knx_direct_lease ip saddr @knx_direct_lan ip daddr @HOME_ROUTER_IP@ counter accept comment "KNX leased private maintenance to home router"

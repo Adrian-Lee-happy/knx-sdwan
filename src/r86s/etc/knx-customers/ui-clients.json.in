@@ -1,0 +1,16 @@
+{
+  "customers": [
+    {
+      "id": "a",
+      "name": "示例维护网关",
+      "notes": "示例资料；请在私有部署中填写名称和维护注意事项，不要提交客户资料。",
+      "model": "OpenWrt maintenance gateway",
+      "tunnel_ip": "@CLIENT_WG_IP@",
+      "lan": "@PRIVATE_LAN_CIDR@",
+      "interface": "wg_customers",
+      "peer_section": "@SERVER_PEER_SECTION@",
+      "control_enabled": true,
+      "metadata_revision": 0
+    }
+  ]
+}

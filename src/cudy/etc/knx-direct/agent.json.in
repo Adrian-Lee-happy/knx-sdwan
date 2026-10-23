@@ -1,0 +1,4 @@
+{
+  "physical_device": "@PHYSICAL_WAN_DEVICE@",
+  "lan": "@PRIVATE_LAN_CIDR@"
+}

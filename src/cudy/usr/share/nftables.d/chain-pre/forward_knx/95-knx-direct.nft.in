@@ -1,0 +1,1 @@
+iifname "wg_home" oifname @knx_direct_lease ip saddr @HOME_CIDR@ ip daddr @knx_direct_real counter accept comment "KNX leased physical WAN only"

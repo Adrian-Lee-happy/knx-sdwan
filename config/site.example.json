@@ -1,0 +1,17 @@
+{
+  "home_cidr": "10.60.0.0/24",
+  "home_router_ip": "10.60.0.1",
+  "private_lan_cidr": "10.61.1.0/24",
+  "wg_cidr": "10.62.0.0/24",
+  "server_wg_ip": "10.62.0.1",
+  "client_wg_ip": "10.62.0.11",
+  "endpoint_host": "vpn.example.invalid",
+  "wg_port": 51821,
+  "physical_wan_device": "eth0",
+  "server_peer_section": "knx_customer_a",
+  "client_peer_section": "knx_home",
+  "openclash_compat_enabled": false,
+  "openclash_table": 354,
+  "openclash_mark": "0x162",
+  "openclash_tun_device": "utun"
+}

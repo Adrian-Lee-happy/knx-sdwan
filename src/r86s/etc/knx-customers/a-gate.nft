@@ -1,0 +1,2 @@
+# KNX_STATE=off
+set knx_a_business { type ipv4_addr; flags interval; }

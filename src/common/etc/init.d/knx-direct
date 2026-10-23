@@ -1,0 +1,15 @@
+#!/bin/sh /etc/rc.common
+START=98
+STOP=9
+USE_PROCD=1
+start_service() {
+ if [ -x /usr/sbin/knx-direct-agent ]; then /usr/sbin/knx-direct-agent reset >/dev/null || return 1; else /usr/sbin/knx-customer a reconcile >/dev/null || return 1; fi
+ procd_open_instance
+ procd_set_param command /bin/sh /usr/sbin/knx-direct-loop
+ procd_set_param env HOME=/root
+ procd_set_param respawn 3600 3 3
+ procd_close_instance
+}
+stop_service() {
+ if [ -x /usr/sbin/knx-direct-agent ]; then /usr/sbin/knx-direct-agent deactivate >/dev/null; else /usr/sbin/knx-customer a reconcile >/dev/null; fi
+}

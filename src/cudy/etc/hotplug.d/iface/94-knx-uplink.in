@@ -1,0 +1,10 @@
+#!/bin/sh
+case "$INTERFACE:$ACTION" in
+ wan:ifdown)
+  ip -4 route del default dev @PHYSICAL_WAN_DEVICE@ proto 187 metric 10 2>/dev/null || true
+  ;;
+ wan:ifup|wan:ifupdate|wwan:ifdown|wwan:ifup|wwan:ifupdate) ;;
+ *) exit 0 ;;
+esac
+[ -d /var/run/knx-uplink ] || mkdir -m 700 /var/run/knx-uplink
+printf '%s:%s:%s\n' "$(date +%s)" "$INTERFACE" "$ACTION" > /var/run/knx-uplink/wake

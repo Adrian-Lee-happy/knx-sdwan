@@ -1,0 +1,86 @@
+#!/usr/bin/lua
+local D=dofile('/usr/lib/knx-direct.lua');local cfg=D.read('/etc/knx-direct/agent.json',{})
+D.fs.mkdir('/var/run/knx-direct','700')
+local statefile='/var/run/knx-direct/agent-state.json'
+local function detect()
+ local function bad(s)return {valid=false,reason=s}end
+ local rc,out=D.run('/bin/ubus',{'call','network.interface.wan','status'});local w=D.json.parse(out)
+ if rc~=0 or type(w)~='table' or not w.up then return bad('physical WAN has no active DHCP lease') end
+ if D.uci('network.wan.proto')~='dhcp' or w.l3_device~=cfg.physical_device or w.device~=cfg.physical_device then return bad('not the approved physical WAN') end
+ if D.fs.readfile('/sys/class/net/'..cfg.physical_device..'/carrier')~='1\n' then return bad('physical WAN carrier down') end
+ local ips=w['ipv4-address'] or {};if #ips~=1 then return bad('zero or multiple physical WAN IPv4 networks')end
+ local ip,p=ips[1].address,ips[1].mask;local n=D.ipnum(ip);local a,b,_,net=D.range((ip or '')..'/'..tostring(p))
+ if not n or not net or not D.private(net) or n==a or n==b then return bad('unsupported or non-private WAN subnet')end
+ for _,reserved in ipairs({'@HOME_CIDR@',cfg.lan,'@WG_CIDR@'})do if D.overlap(net,reserved)then return bad('WAN overlaps management or local network')end end
+ local _,wo=D.run('/bin/ubus',{'call','network.interface.wwan','status'});local ww=D.json.parse(wo)or{}
+ for _,x in ipairs(ww['ipv4-address']or{})do if D.overlap(net,x.address..'/'..x.mask)then return bad('WAN overlaps WWAN; not a customer LAN')end end
+ local data=w.data or {};if type(data.leasetime)~='number' or data.leasetime<=0 or not D.ipnum(data.dhcpserver)then return bad('DHCP lease evidence missing')end
+ local gw
+ for _,r in ipairs(w.route or{})do if r.target=='0.0.0.0' and r.mask==0 then if gw and gw~=r.nexthop then return bad('multiple gateways')end;gw=r.nexthop end end
+ local gn=D.ipnum(gw);if not gn or gn<=a or gn>=b then return bad('valid on-link DHCP gateway missing')end
+ local routes=D.json.parse(D.ip({'-j','-4','route','show','scope','link','dev',cfg.physical_device}))or{}
+ local direct=false;for _,r in ipairs(routes)do if r.dst==net then direct=true end end
+ if not direct then return bad('connected WAN route missing')end
+ if D.run('/bin/ping',{'-I',cfg.physical_device,'-c','1','-W','1',gw})~=0 then return bad('physical gateway verification failed')end
+ local neighbor=D.ip({'-4','neigh','show',gw,'dev',cfg.physical_device},true)
+ local mac=neighbor:match('lladdr ([%x:]+)');if not mac then return bad('gateway MAC verification failed')end
+ local epoch=D.fs.readfile('/var/run/knx-direct/epoch')or'0'
+ local boot=D.fs.readfile('/proc/sys/kernel/random/boot_id')or''
+ local material=table.concat({boot,epoch,ip,tostring(p),gw,mac,data.dhcpserver},'|')
+ local fp=D.must('/usr/bin/sha256sum',{},material):match('^(%x+)')
+ return {valid=true,network=net,address=ip,prefix=p,device=cfg.physical_device,gateway=gw,dhcpserver=data.dhcpserver,gateway_mac=mac,fingerprint=fp,lease_seconds=data.leasetime}
+end
+local function close()
+ D.run('/usr/sbin/nft',{'-f','-'},'flush set inet fw4 knx_direct_lease\nflush set inet fw4 knx_direct_real\n')
+ local old=D.read(statefile,{})
+ if old.network and D.private(old.network) then
+  D.ip({'-4','rule','del','pref','1680','from','@HOME_CIDR@','to',old.network,'lookup','190'},true)
+  D.ip({'-4','rule','del','pref','1681','from',old.network,'to','@HOME_CIDR@','lookup','189'},true)
+  D.ip({'-4','route','del',old.network,'table','190'},true)
+  D.ct('@HOME_CIDR@',old.network);D.ct(old.network,'@HOME_CIDR@')
+ end
+ D.ip({'-4','route','del','unreachable','default','table','190','metric','42760'},true)
+ D.ct(cfg.lan,'@HOME_CIDR@');D.ct('@HOME_CIDR@',cfg.lan)
+ D.write(statefile,{})
+end
+local function live(s,c)
+ return s.active and c.valid and s.fingerprint==c.fingerprint and (s.expires or 0)>os.time() and D.has('knx_direct_lease','"'..cfg.physical_device..'"')
+end
+local function lease(c)
+ D.nft('flush set inet fw4 knx_direct_lease\nadd element inet fw4 knx_direct_lease { "'..cfg.physical_device..'" timeout 45s, "br-lan" timeout 45s, "wg_home" timeout 45s }')
+ D.write(statefile,{active=true,network=c.network,fingerprint=c.fingerprint,expires=os.time()+45})
+end
+local remote=os.getenv('SSH_ORIGINAL_COMMAND')
+local action=remote or arg[1] or 'reset'
+if remote and (os.getenv('SSH_CONNECTION')or''):match('^(%S+)')~='@SERVER_WG_IP@'then print('{"success":false,"reason":"source denied"}');os.exit(1)end
+if remote and action~='probe' and action~='activate' and action~='renew' and action~='deactivate' then print('{"success":false,"reason":"forbidden command"}');os.exit(1)end
+local lock=D.lock('/var/lock/knx-direct-agent.lock')
+local ok,result=pcall(function()
+ if action=='deactivate' or action=='reset' or action=='invalidate' then
+  close()
+  if action=='invalidate' then local f=assert(io.open('/var/run/knx-direct/epoch','w'));f:write(tostring(os.time()));f:close()end
+  return {success=true,active=false}
+ end
+ local c=detect();local s=D.read(statefile,{})
+ if action=='probe' or action=='watch' then
+  if s.network and not live(s,c) then close();s={}end
+  return {success=true,candidate=c,active=live(s,c)or false,network=s.network}
+ end
+ assert(action=='activate' or action=='renew','forbidden method')
+ local request=D.json.parse(io.read(4096)or'')or{}
+ assert(c.valid and request.fingerprint==c.fingerprint,'candidate is no longer valid')
+ if action=='renew' then assert(live(s,c),'lease lost; explicit ON required');lease(c);return {success=true,active=true,network=c.network}end
+ close()
+ D.write(statefile,{network=c.network,fingerprint=c.fingerprint})
+ D.ip({'-4','route','replace','unreachable','default','table','190','metric','42760'})
+ D.ip({'-4','route','add',c.network,'dev',c.device,'src',c.address,'table','190'})
+ D.ip({'-4','rule','add','pref','1680','from','@HOME_CIDR@','to',c.network,'lookup','190'})
+ D.ip({'-4','rule','add','pref','1681','from',c.network,'to','@HOME_CIDR@','lookup','189'})
+ D.nft('flush set inet fw4 knx_direct_real\nadd element inet fw4 knx_direct_real { '..c.network..' }')
+ lease(c)
+ return {success=true,active=true,network=c.network,fingerprint=c.fingerprint}
+end)
+if not ok and (action=='activate' or action=='renew') then pcall(close)end
+lock:close()
+print(D.json.stringify(ok and result or {success=false,reason='agent refused operation; business closed'}))
+os.exit(ok and 0 or 1)

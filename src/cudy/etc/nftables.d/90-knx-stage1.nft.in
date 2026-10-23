@@ -1,0 +1,12 @@
+set knx_authorized_lan { type ipv4_addr; comment "Business controlled by R86S with expiring lease"; }
+chain knx_forward_guard {
+ type filter hook forward priority -10; policy accept;
+ iifname "wg_home" meta nfproto ipv6 counter drop
+ oifname "wg_home" meta nfproto ipv6 counter drop
+ iifname "br-lan" iifname @knx_direct_lease oifname "wg_home" ip saddr @PRIVATE_LAN_CIDR@ ip daddr @HOME_CIDR@ counter accept
+ iifname "wg_home" iifname @knx_direct_lease oifname "br-lan" ip saddr @HOME_CIDR@ ip daddr @PRIVATE_LAN_CIDR@ counter accept
+ iifname "wg_home" oifname @knx_direct_lease ip saddr @HOME_CIDR@ ip daddr @knx_direct_real counter accept
+ iifname @knx_direct_lease oifname "wg_home" ip saddr @knx_direct_real ip daddr @HOME_CIDR@ ct state established,related counter accept
+ iifname "wg_home" counter drop
+ oifname "wg_home" counter drop
+}

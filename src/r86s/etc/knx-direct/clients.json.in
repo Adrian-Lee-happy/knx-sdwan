@@ -1,0 +1,8 @@
+{
+  "a": {
+    "id": "a",
+    "peer": "@SERVER_PEER_SECTION@",
+    "tunnel": "@CLIENT_WG_IP@",
+    "lan": "@PRIVATE_LAN_CIDR@"
+  }
+}

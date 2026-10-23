@@ -1,0 +1,38 @@
+# REVIEW-ONLY fragments; keys absent, never import as a whole network file.
+config interface 'wg_home'
+ option proto 'wireguard'
+ option mtu '1280'
+ option nohostroute '1'
+ list addresses '@CLIENT_WG_IP@/32'
+
+config wireguard_wg_home '@CLIENT_PEER_SECTION@'
+ option description 'Home maintenance server'
+ option endpoint_host '@ENDPOINT_HOST@'
+ option endpoint_port '@WG_PORT@'
+ option persistent_keepalive '25'
+ option route_allowed_ips '0'
+ list allowed_ips '@WG_CIDR@'
+ list allowed_ips '@HOME_CIDR@'
+
+config route 'knx_tunnel_route'
+ option interface 'wg_home'
+ option target '@WG_CIDR@'
+
+config rule 'knx_customer_policy'
+ option priority '1700'
+ option src '@PRIVATE_LAN_CIDR@'
+ option dest '@HOME_CIDR@'
+ option lookup '189'
+
+config rule 'knx_router_policy'
+ option priority '1701'
+ option src '@CLIENT_WG_IP@/32'
+ option dest '@HOME_CIDR@'
+ option lookup '189'
+
+# Merge these OPTIONS into EXISTING wan/wwan DHCP interfaces, not new duplicates:
+# network.wan.proto=dhcp; network.wan.device=@PHYSICAL_WAN_DEVICE@
+# network.wan.defaultroute=1; network.wan.metric=30
+# network.wwan.proto=dhcp; network.wwan.defaultroute=1; network.wwan.metric=20
+# knx-uplink owns only the health-gated WAN default (proto 187, metric 10).
+# Private maintenance LAN address, DHCP and Wi-Fi encryption require local setup.

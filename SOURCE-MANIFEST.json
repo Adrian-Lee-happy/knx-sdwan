@@ -1,0 +1,191 @@
+{
+  "description": "Reviewed allowlisted source snapshot; source hashes identify provenance, not deployed template validation.",
+  "entries": [
+    {
+      "source_basename": "knx-direct-lib.lua",
+      "path": "src/common/usr/lib/knx-direct.lua",
+      "source_sha256": "72246e5e77867fbb4542bfed79a2b5302805749e0aa71e6b34ec3816918b549d",
+      "publication_sha256": "72246e5e77867fbb4542bfed79a2b5302805749e0aa71e6b34ec3816918b549d"
+    },
+    {
+      "source_basename": "knx-direct-controller.lua",
+      "path": "src/r86s/usr/sbin/knx-direct-controller.in",
+      "source_sha256": "acb0801b96d38733aa5d3f41ad0d959e4a05f922fe67e36039eaf5da0ef6657e",
+      "publication_sha256": "7370e6b39a9755d0d12d785cb1a79fd3739f3f92a137232ea6e787e7b3522c73"
+    },
+    {
+      "source_basename": "knx-direct-wrapper.sh",
+      "path": "src/r86s/usr/sbin/knx-customer",
+      "source_sha256": "51f23d3d65d9484f39f57ca11f1d974984cad1685f25a59f87e7fa784682ff83",
+      "publication_sha256": "51f23d3d65d9484f39f57ca11f1d974984cad1685f25a59f87e7fa784682ff83"
+    },
+    {
+      "source_basename": "knx-direct-reset.sh",
+      "path": "src/r86s/usr/sbin/knx-direct-reset",
+      "source_sha256": "47f4e586823bb99a61a45e1d08f0664bc1b0c8c37a0a38a46108182ce1a5226d",
+      "publication_sha256": "47f4e586823bb99a61a45e1d08f0664bc1b0c8c37a0a38a46108182ce1a5226d"
+    },
+    {
+      "source_basename": "knx-direct-loop.sh",
+      "path": "src/common/usr/sbin/knx-direct-loop",
+      "source_sha256": "332998c747407cf62d2fa9d9d7f7d282c3ddddef6a0677e8539e0dc0cc93129c",
+      "publication_sha256": "332998c747407cf62d2fa9d9d7f7d282c3ddddef6a0677e8539e0dc0cc93129c"
+    },
+    {
+      "source_basename": "knx-direct.init",
+      "path": "src/common/etc/init.d/knx-direct",
+      "source_sha256": "c5beb8a18cabf0011d0211cf6ddbd25120aca8b5440400bfb6d812b449635d1f",
+      "publication_sha256": "c5beb8a18cabf0011d0211cf6ddbd25120aca8b5440400bfb6d812b449635d1f"
+    },
+    {
+      "source_basename": "knx-direct-r86s-defs.nft",
+      "path": "src/r86s/etc/nftables.d/89-knx-direct.nft",
+      "source_sha256": "a460626759dc8d5499aa6d9effcf2f4c2c3c960fc277edac3cf65e913c8d8db6",
+      "publication_sha256": "a460626759dc8d5499aa6d9effcf2f4c2c3c960fc277edac3cf65e913c8d8db6"
+    },
+    {
+      "source_basename": "knx-direct-r86s-guard.nft",
+      "path": "src/r86s/etc/nftables.d/90-knx-stage1.nft.in",
+      "source_sha256": "f40d1f4978aeebb1a127859d430e567847f17d982ed1b4336052006953bda379",
+      "publication_sha256": "66ef15a1ea211ae316b7c9060fd8dfe79cb13f90979909a2c6e9cb60b80fb2f6"
+    },
+    {
+      "source_basename": "knx-direct-r86s-forward.nft",
+      "path": "src/r86s/usr/share/nftables.d/chain-pre/forward_lan/95-knx-direct.nft.in",
+      "source_sha256": "625b81a9e9e1d1906af66a309f1ba6995031d7dca2f9b024295da79f59412059",
+      "publication_sha256": "79c5f62313d21532edb80cd932c5494205ab7ded1a4dc2734d0816058eea97ec"
+    },
+    {
+      "source_basename": "knx-private-input.nft",
+      "path": "src/r86s/usr/share/nftables.d/chain-pre/input_knx/95-knx-private-maintenance.nft.in",
+      "source_sha256": "1d166f839a50e00802500116fb8d182af8df6c772fc4281d91ebb5bb98cb640f",
+      "publication_sha256": "1931416d44e4814b2f04a33f8dc84b406d00965380500bf3ca306e1fb76e4844"
+    },
+    {
+      "source_basename": "knx-direct-agent.lua",
+      "path": "src/cudy/usr/sbin/knx-direct-agent.in",
+      "source_sha256": "4ab00062825dbf4d7e7aa15594cc8312786373e2550b0525fb7eef7b456bb137",
+      "publication_sha256": "ea332ac05d1678a45c85457f5879914d34efb912dd6123aebc1e60d2515e1b69"
+    },
+    {
+      "source_basename": "knx-direct-cudy.hotplug",
+      "path": "src/cudy/etc/hotplug.d/iface/98-knx-direct",
+      "source_sha256": "a6196974423fbe460423f872d244b2fa57032385febd17f9284f4fc8171cb53b",
+      "publication_sha256": "a6196974423fbe460423f872d244b2fa57032385febd17f9284f4fc8171cb53b"
+    },
+    {
+      "source_basename": "knx-direct-cudy-defs.nft",
+      "path": "src/cudy/etc/nftables.d/89-knx-direct.nft.in",
+      "source_sha256": "53b6294501907691846af1551db424caf78d07c578b9f1c4c7391435b4264033",
+      "publication_sha256": "c821caad1973df699d3e2034cd93a3971bd6b53dd94d76b6cab3fe859748db73"
+    },
+    {
+      "source_basename": "knx-direct-cudy-guard.nft",
+      "path": "src/cudy/etc/nftables.d/90-knx-stage1.nft.in",
+      "source_sha256": "4d70208ac80a221677fc15fd8b5c2c434d4c691aa773a45932777664d75454d9",
+      "publication_sha256": "a639418489b0d5f9af2c1b4fb5a8a1c525b4f7b901e1013be088ff7f71c44d2b"
+    },
+    {
+      "source_basename": "knx-direct-cudy-forward.nft",
+      "path": "src/cudy/usr/share/nftables.d/chain-pre/forward_knx/95-knx-direct.nft.in",
+      "source_sha256": "75ec488fd12065807e09707158133ad602cdedaf84b87ec9e6a6a98fff4d6034",
+      "publication_sha256": "6b822a794515fd0b4b260a555b4ec09984be34d37a9745d86a42d8aacca2f7f7"
+    },
+    {
+      "source_basename": "knx-uplink.lua",
+      "path": "src/cudy/usr/sbin/knx-uplink.in",
+      "source_sha256": "f488e8d1b7a162b70a6ba3043e4485188a97dea859c11c61866113dcc27d0e11",
+      "publication_sha256": "f0a803de03cc7808638aadcf8b8d18d8827b2174a5d9c2e5dcb8e67656dab299"
+    },
+    {
+      "source_basename": "knx-uplink-http.lua",
+      "path": "src/cudy/usr/sbin/knx-uplink-http",
+      "source_sha256": "475bf7763fef27c92d9754bbe9dc4afaef0a17dfe80871d297b92c381f3c437c",
+      "publication_sha256": "475bf7763fef27c92d9754bbe9dc4afaef0a17dfe80871d297b92c381f3c437c"
+    },
+    {
+      "source_basename": "knx-uplink-loop.sh",
+      "path": "src/cudy/usr/sbin/knx-uplink-loop",
+      "source_sha256": "97bb6a78ca507a5f11eb8666d2f67ccaa7096fd4dc24283b2b51e2c0dae7f689",
+      "publication_sha256": "97bb6a78ca507a5f11eb8666d2f67ccaa7096fd4dc24283b2b51e2c0dae7f689"
+    },
+    {
+      "source_basename": "knx-uplink.init",
+      "path": "src/cudy/etc/init.d/knx-uplink",
+      "source_sha256": "15ce0d8f0747dc8178c9f6edd61bccfa527c657dd65c88fe216162ea442199b8",
+      "publication_sha256": "15ce0d8f0747dc8178c9f6edd61bccfa527c657dd65c88fe216162ea442199b8"
+    },
+    {
+      "source_basename": "knx-uplink.hotplug",
+      "path": "src/cudy/etc/hotplug.d/iface/94-knx-uplink.in",
+      "source_sha256": "da22a04202c23f12ff78046a44ef3c423bad74d4d6f50d5675963dee952bef1f",
+      "publication_sha256": "4751be163bc2ae971de265b7e453bb19cd81b64f64eae514324583f960a483ba"
+    },
+    {
+      "source_basename": "knx-wg-refresh.sh",
+      "path": "src/cudy/usr/sbin/knx-wg-refresh.in",
+      "source_sha256": "4f58108cd10f2e8acf30310477adce64ed1af4ae7171d018a96fe310d418b943",
+      "publication_sha256": "ff16a036952fd62cef24b080c188aa46077481e0e92950a5786e7c2a5d7ec299"
+    },
+    {
+      "source_basename": "knx-wg-public-ip.sh",
+      "path": "src/cudy/usr/lib/knx-wg-public-ip.sh",
+      "source_sha256": "62f89d5baf649f5c57e5090d4d14dd3b97b73559efa31ea35e90fa7e8aed9bda",
+      "publication_sha256": "62f89d5baf649f5c57e5090d4d14dd3b97b73559efa31ea35e90fa7e8aed9bda"
+    },
+    {
+      "source_basename": "knx-wg-loop.sh",
+      "path": "src/cudy/usr/sbin/knx-wg-loop",
+      "source_sha256": "23b43a1f658ca5db6dfd344ffefe587b79c2ff9f8649dff312e44bedddb76fd1",
+      "publication_sha256": "23b43a1f658ca5db6dfd344ffefe587b79c2ff9f8649dff312e44bedddb76fd1"
+    },
+    {
+      "source_basename": "knx-wg-ddns.init",
+      "path": "src/cudy/etc/init.d/knx-wg-ddns",
+      "source_sha256": "16396fac8d60b25e3a083d1c3f319e44998cb7b5dfb257681dadb2ec069176e9",
+      "publication_sha256": "16396fac8d60b25e3a083d1c3f319e44998cb7b5dfb257681dadb2ec069176e9"
+    },
+    {
+      "source_basename": "knx-cudy-ddns-policy",
+      "path": "src/cudy/etc/hotplug.d/iface/95-knx-policy.in",
+      "source_sha256": "d809310cc7abfc36e1a469200e637dc9511bcf6f47e177d21b915f852539c392",
+      "publication_sha256": "98bf9f208cb8b5db444e9126b9039ebc79cd9a41a2c20e418cc2cfcb61862734"
+    },
+    {
+      "source_basename": "knx-r86s-policy",
+      "path": "src/r86s/etc/hotplug.d/iface/95-knx-policy.in",
+      "source_sha256": "9fa74b37bb8619d65a1b1ee8fcefad260301376c5e7af615d9d0322ee93446dd",
+      "publication_sha256": "674cab4619eec7e6525ff73e1c9ed02db0dabc7cb28e0af5973193d02688d1c6"
+    },
+    {
+      "source_basename": "knx-luci-rpc.lua",
+      "path": "src/r86s/usr/libexec/rpcd/knx.customer",
+      "source_sha256": "67fa59fff582b5049df370ae0d72c26f1484344922bad5cbbe5615f7f964516b",
+      "publication_sha256": "67fa59fff582b5049df370ae0d72c26f1484344922bad5cbbe5615f7f964516b"
+    },
+    {
+      "source_basename": "knx-luci-view.js",
+      "path": "src/r86s/www/luci-static/resources/view/knx/maintenance.js",
+      "source_sha256": "c75927a6e3e04c77355523672f6bab10aae029b02b73aeeeb527a4138a3adfa9",
+      "publication_sha256": "c75927a6e3e04c77355523672f6bab10aae029b02b73aeeeb527a4138a3adfa9"
+    },
+    {
+      "source_basename": "knx-luci-menu.json",
+      "path": "src/r86s/usr/share/luci/menu.d/luci-app-knx-maintenance.json",
+      "source_sha256": "32930b2244f9efb871e1726345898e5693edaae906b060ff542f1fd080ed367e",
+      "publication_sha256": "32930b2244f9efb871e1726345898e5693edaae906b060ff542f1fd080ed367e"
+    },
+    {
+      "source_basename": "knx-luci-acl.json",
+      "path": "src/r86s/usr/share/rpcd/acl.d/luci-app-knx-maintenance.json",
+      "source_sha256": "cf1109f0ad713f9038774e807e4996bcfcaa238d8356c268a1754902e1fe9195",
+      "publication_sha256": "cf1109f0ad713f9038774e807e4996bcfcaa238d8356c268a1754902e1fe9195"
+    },
+    {
+      "source_basename": "knx-luci-v2-view-test.cjs",
+      "path": "tests/luci-view.test.cjs",
+      "source_sha256": "7d89bb6bc1d2de37bacd8a8e505584f58af43bc8c88bed1d1318f8a5b88aac48",
+      "publication_sha256": "e9f25c4a7e4266223d6d27c30669df53b7cd75c8dee44b7b786a84540ef0fd95"
+    }
+  ]
+}

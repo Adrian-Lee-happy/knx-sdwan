@@ -1,0 +1,203 @@
+#!/usr/bin/lua
+local D=dofile('/usr/lib/knx-direct.lua')
+local clients=D.read('/etc/knx-direct/clients.json',{})
+local id,action=arg[1],arg[2]or'status'
+assert(type(id)=='string' and id:match('^[a-z][a-z0-9_-]*$')and clients[id],'unknown customer')
+local me=clients[id];local HOME='@HOME_CIDR@'
+local seen_tunnel,seen_peer={},{}
+for key,c in pairs(clients)do
+ assert(c.id==key and type(c.peer)=='string'and c.peer:match('^[a-zA-Z0-9_]+$')and D.ipnum(c.tunnel)and D.overlap(c.tunnel..'/32','@WG_CIDR@')and D.private(c.lan),'invalid client registry')
+ assert(not seen_tunnel[c.tunnel]and not seen_peer[c.peer],'duplicate customer identity')
+ seen_tunnel[c.tunnel]=true;seen_peer[c.peer]=true
+end
+local activefile='/var/run/knx-direct-active.json'
+local lock=D.lock('/var/lock/knx-customer-global.lock')
+local function mode(c) if D.uci('network.'..c.peer..'.disabled')=='1'then return'disconnect'end;local s=D.fs.readfile('/etc/knx-customers/'..c.id..'-state')or'off';return s:match('^(%a+)')or'off'end
+local function setmode(c,m) local f=assert(D.n.open('/etc/knx-customers/'..c.id..'-state','w','600'));f:writeall(m..'\n');f:close()end
+local function pub(c)return assert(D.uci('network.'..c.peer..'.public_key'),'customer peer absent')end
+local function present(c)local _,s=D.run('/usr/bin/wg',{'show','wg_customers','peers'});return s:find(pub(c),1,true)~=nil end
+local function remote(c,method,payload)
+ D.n.setenv('HOME','/root')
+ local args={'-T','-i','/etc/knx-direct/id_ed25519','-o','BatchMode=yes','-o','PasswordAuthentication=no','-o','StrictHostKeyChecking=yes','-K','2','-I','5','root@'..c.tunnel,method}
+ table.insert(args,2,'-b');table.insert(args,3,'@SERVER_WG_IP@')
+ local rc,out=D.run('/usr/bin/dbclient',args,D.json.stringify(payload or {}),8);local v=D.json.parse(out)
+ return rc==0 and type(v)=='table' and v.success==true and v or nil
+end
+local function allowed(c,nets)
+ if present(c)then D.must('/usr/bin/wg',{'set','wg_customers','peer',pub(c),'allowed-ips',table.concat(nets,',')})end
+end
+local function ensure_peer(c)
+ if D.uci('network.'..c.peer..'.disabled')~='0'then D.must('/sbin/uci',{'set','network.'..c.peer..'.disabled=0'});D.must('/sbin/uci',{'commit','network'})end
+ if not present(c)then
+  D.must('/usr/bin/wg',{'set','wg_customers','peer',pub(c),'allowed-ips',c.tunnel..'/32'})
+  local endpoint=D.fs.readfile('/etc/knx-customers/'..c.id..'-last-endpoint')
+  if endpoint then endpoint=endpoint:match('^(%S+)');if endpoint and endpoint~='(none)'then D.must('/usr/bin/wg',{'set','wg_customers','peer',pub(c),'endpoint',endpoint})end end
+  D.run('/bin/ping',{'-c','1','-W','1',c.tunnel})
+ end
+end
+local function conflict(c,net)
+ if not D.private(net)then return'unsupported customer subnet'end
+ for _,r in pairs(clients)do for _,reserved in ipairs({HOME,'@WG_CIDR@',r.lan,r.tunnel..'/32'})do if D.overlap(net,reserved)then return'overlaps home, customer LAN or management network'end end end
+ local rc,text=D.run('/sbin/ip',{'-j','-4','route','show','table','all'});local routes=D.json.parse(text)
+ if rc~=0 or type(routes)~='table'then return'route inspection unavailable'end
+ for _,r in ipairs(routes)do
+  if r.dst and r.dst~='default'and r.dst~='0.0.0.0/0'and tostring(r.table)~='191'then
+   local p=r.dst:find('/')and r.dst or r.dst..'/32'
+   if D.overlap(net,p)then return'overlaps an existing route: '..p end
+  end
+ end
+ local u=require'uci'.cursor()
+ local why
+ u:foreach('network','route',function(r)
+  local target=r.target
+  if target and target~='0.0.0.0'and target~='0.0.0.0/0'then
+   local p=target:find('/')and target or target..'/32'
+   if r.netmask and not target:find('/')then
+    local n=D.ipnum(r.netmask);local bits=0
+    if n then while n>0 do bits=bits+n%2;n=math.floor(n/2)end;p=target..'/'..bits end
+   end
+   if D.overlap(net,p)then why='overlaps a configured static route'end
+  end
+ end)
+ if why then return why end
+ local _,wg=D.run('/usr/bin/wg',{'show','all','allowed-ips'})
+ for line in wg:gmatch('[^\n]+')do
+  local iface,key,rest=line:match('^(%S+)%s+(%S+)%s+(.+)$')
+  if iface and not(iface=='wg_customers'and key==pub(c))then
+   for p in rest:gmatch('[%d.]+/%d+')do if D.overlap(net,p)then return'overlaps another VPN peer AllowedIPs'end end
+  end
+ end
+ for _,kind in ipairs({'redirect','nat'})do u:foreach('firewall',kind,function(r)
+  if r.enabled~='0'then
+   local values=r.dest_ip
+   if type(values)=='string'then values={values}end
+   for _,ip in ipairs(type(values)=='table'and values or{})do
+    local p=ip:find('/')and ip or ip..'/32';if D.overlap(net,p)then why='overlaps an existing NAT target'end
+   end
+  end
+ end)end
+ for _,chain in ipairs({'dstnat','dstnat_wan','dstnat_lan','srcnat','srcnat_lan','srcnat_wan'})do
+  local rc,text=D.run('/usr/sbin/nft',{'-j','list','chain','inet','fw4',chain})
+  if rc==0 then
+   local function scan(v,in_nat)
+    if type(v)=='string'and in_nat and D.ipnum(v)and D.overlap(net,v..'/32')then why='overlaps an active NAT target'end
+    if type(v)=='table'then
+     if in_nat and v.prefix and v.prefix.addr and v.prefix.len and D.overlap(net,v.prefix.addr..'/'..v.prefix.len)then why='overlaps an active NAT prefix'end
+     for k,x in pairs(v)do scan(x,in_nat or k=='dnat'or k=='snat')end
+    end
+   end
+   scan(D.json.parse(text),false)
+  end
+ end
+ return why
+end
+local function known(add)
+ local list=D.read('/etc/knx-direct/known.json',{});local seen={};local all={}
+ for _,c in pairs(clients)do seen[c.lan]=true;all[#all+1]=c.lan end
+ for _,p in ipairs(list)do if D.private(p)and not seen[p]then seen[p]=true;all[#all+1]=p end end
+ if add and not seen[add]then list[#list+1]=add;D.write('/etc/knx-direct/known.json',list);all[#all+1]=add end
+ local definition='set knx_direct_known { type ipv4_addr; flags interval; auto-merge; elements = { '..table.concat(all,', ')..' }; }\n'
+ local path='/etc/knx-direct/known.nft'
+ if D.fs.readfile(path)~=definition then
+  local f=assert(D.n.open(path..'.tmp','w','600'));assert(f:writeall(definition));f:close();assert(D.fs.rename(path..'.tmp',path))
+ end
+ local text='flush set inet fw4 knx_direct_known\n'
+ if #all>0 then text=text..'add element inet fw4 knx_direct_known { '..table.concat(all,', ')..' }'end
+ D.nft(text)
+end
+local function closeall()
+ D.nft('flush set inet fw4 knx_direct_lease\nflush set inet fw4 knx_a_business\nflush set inet fw4 knx_direct_lan')
+ local old=D.read(activefile,{})
+ if old.id and clients[old.id]and D.private(old.network)then
+  local c=clients[old.id]
+  for _,p in ipairs({old.network,c.lan})do
+   D.ip({'-4','route','del',p,'dev','wg_customers','proto','186','metric','189','table','191'},true)
+   D.ct(HOME,p);D.ct(p,HOME)
+  end
+  D.ip({'-4','rule','del','pref','1709','from',HOME,'to',c.lan,'lookup','191'},true)
+  D.ip({'-4','rule','del','pref','1710','from',HOME,'to',old.network,'lookup','191'},true)
+ end
+ D.ip({'-4','route','del','unreachable','default','table','191','metric','42760'},true)
+ D.write(activefile,{})
+ for _,c in pairs(clients)do
+  allowed(c,{c.tunnel..'/32'})
+  D.ct(HOME,c.lan);D.ct(c.lan,HOME)
+  if mode(c)~='disconnect'then remote(c,'deactivate');setmode(c,'off')end
+ end
+end
+local function prepare(c,report)
+ if not report or not report.candidate then return nil,'candidate communication unavailable'end
+ local v=report.candidate
+ if not v.valid then return nil,v.reason or'no physical WAN'end
+ if type(v.fingerprint)~='string'or not v.fingerprint:match('^%x+$')or #v.fingerprint~=64 then return nil,'invalid candidate identity'end
+ local why=conflict(c,v.network);if why then return nil,why end
+ known(v.network)
+ return v
+end
+local function lease()
+ D.nft('flush set inet fw4 knx_direct_lease\nadd element inet fw4 knx_direct_lease { "br-lan" timeout 45s, "wg_customers" timeout 45s }')
+end
+local function refresh()
+ local a=D.read(activefile,{})
+ local cache={}
+ for key,c in pairs(clients)do
+  local report=mode(c)~='disconnect'and remote(c,'probe')or nil
+  local v,why=prepare(c,report)
+  cache[key]={ready=v~=nil,candidate=v,reason=why,observed_at=os.time()}
+  if a.id==key then
+   if not v or v.fingerprint~=a.fingerprint or not report.active or not D.has('knx_direct_lease','"wg_customers"')then closeall();a={}
+   elseif not remote(c,'renew',{fingerprint=v.fingerprint})then closeall();a={}
+   else lease()end
+  end
+ end
+ D.write('/var/run/knx-direct-candidates.json',cache)
+end
+local function output_status(c)
+ local m=mode(c);local a=D.read(activefile,{})
+ local on=a.id==c.id and D.has('knx_direct_lease','"wg_customers"')and D.has('knx_a_business',c.lan)
+ print('customer='..c.id..' saved_state='..m..' configured_disabled='..(D.uci('network.'..c.peer..'.disabled')or'0'))
+ if present(c)then
+  print('runtime_peer=present');local _,s=D.run('/usr/bin/wg',{'show','wg_customers','latest-handshakes'});local stamp
+  for line in s:gmatch('[^\n]+')do local k,t=line:match('^(%S+)%s+(%d+)');if k==pub(c)then stamp=tonumber(t)end end
+  if stamp and stamp>0 then print('handshake_age_seconds='..(os.time()-stamp))else print('handshake=never')end
+ else print('runtime_peer=absent')end
+ print('business='..(on and'ON'or'OFF'))
+ local cached=(D.read('/var/run/knx-direct-candidates.json',{})or{})[c.id]or{}
+ print('candidate_ready='..tostring(cached.ready==true))
+ print('candidate_subnet='..(cached.candidate and cached.candidate.network or'none'))
+ print('candidate_reason='..(cached.reason or'none'))
+end
+local ok,err=pcall(function()
+ if action=='status'then output_status(me);return end
+ if action=='watch'then refresh();return end
+ assert(action=='on'or action=='off'or action=='disconnect'or action=='reconnect'or action=='restore'or action=='reconcile','invalid action')
+ closeall();known()
+ if action=='disconnect'then
+  if present(me)then local _,s=D.run('/usr/bin/wg',{'show','wg_customers','endpoints'});for line in s:gmatch('[^\n]+')do local k,e=line:match('^(%S+)%s+(%S+)');if k==pub(me)then local f=assert(io.open('/etc/knx-customers/'..id..'-last-endpoint','w'));f:write(e..'\n');f:close()end end end
+  D.must('/sbin/uci',{'set','network.'..me.peer..'.disabled=1'});D.must('/sbin/uci',{'commit','network'})
+  D.must('/usr/bin/wg',{'set','wg_customers','peer',pub(me),'remove'});setmode(me,'disconnect')
+ elseif action=='off'or action=='reconnect'then ensure_peer(me);setmode(me,'off')
+ elseif action=='on'then
+  assert(mode(me)~='disconnect'and present(me),'Reconnect first')
+  local v,why=prepare(me,remote(me,'probe'));assert(v,why)
+  D.write(activefile,{id=id,network=v.network,fingerprint=v.fingerprint,phase='prepared'})
+  assert(remote(me,'activate',{fingerprint=v.fingerprint}),'customer refused activation')
+  local trc,tout=D.run('/sbin/ip',{'-4','route','show','table','191'})
+  assert((trc==0 and tout:match('^%s*$'))or(trc~=0 and(tout:find('Dump terminated',1,true)or tout:find('FIB table does not exist',1,true))),'business route table conflict')
+  local rules=D.ip({'-4','rule','show'})
+  assert(not rules:match('\n1709:')and not rules:match('\n1710:'),'business policy priority conflict')
+  allowed(me,{me.tunnel..'/32',me.lan,v.network})
+  D.ip({'-4','route','add','unreachable','default','table','191','metric','42760'})
+  for _,p in ipairs({me.lan,v.network})do D.ip({'-4','route','add',p,'dev','wg_customers','proto','186','metric','189','table','191'})end
+  D.ip({'-4','rule','add','pref','1709','from',HOME,'to',me.lan,'lookup','191'})
+  D.ip({'-4','rule','add','pref','1710','from',HOME,'to',v.network,'lookup','191'})
+  D.nft('add element inet fw4 knx_a_business { '..me.lan..', '..v.network..' }\nadd element inet fw4 knx_direct_lan { '..me.lan..' }')
+  lease();setmode(me,'on');D.write(activefile,{id=id,network=v.network,fingerprint=v.fingerprint})
+ end
+ print('customer='..id..' state='..mode(me)..' action='..action..' OK')
+end)
+if not ok then
+ if action~='status'then pcall(closeall)end
+ io.stderr:write('KNX refused operation; business OFF: '..tostring(err)..'\n')
+end
+lock:close();os.exit(ok and 0 or 1)

@@ -1,0 +1,65 @@
+#!/bin/sh
+set -eu
+umask 077
+. /usr/lib/knx-wg-public-ip.sh
+domain='@ENDPOINT_HOST@'
+state=/etc/knx-wg/endpoint.hosts
+paused=/etc/knx-wg/paused
+action=${1:---scheduled}
+if [ "$action" = --validate-ip ]; then knx_public_ipv4 "${2:-}"; exit; fi
+[ ! -f "$paused" ] || exit 0
+resolve_public() {
+ for provider in cloudflare-primary cloudflare-secondary alidns; do
+  case "$provider" in
+   cloudflare-primary) server=cloudflare-dns.com; bootstrap=1.1.1.1; path=dns-query ;;
+   cloudflare-secondary) server=cloudflare-dns.com; bootstrap=1.0.0.1; path=dns-query ;;
+   alidns) server=dns.alidns.com; bootstrap=223.5.5.5; path=resolve ;;
+  esac
+  body=$(curl --noproxy '*' --resolve "$server:443:$bootstrap" --connect-timeout 4 --max-time 10 -fsS -H 'accept: application/dns-json' "https://$server/$path?name=$domain&type=A" 2>/dev/null) || continue
+  status=$(printf '%s' "$body" | jsonfilter -e '@.Status' 2>/dev/null) || continue
+  [ "$status" = 0 ] || continue
+  answers=$(printf '%s' "$body" | jsonfilter -e '@.Answer[*].data' 2>/dev/null) || continue
+  for address in $answers; do
+   if knx_public_ipv4 "$address"; then printf '%s\n' "$address"; return 0; fi
+  done
+ done
+ return 1
+}
+if [ "$action" = --resolve-only ]; then resolve_public; exit; fi
+case "$action" in --force|--scheduled) ;; *) exit 2;; esac
+[ "$(uci -q get network.@CLIENT_PEER_SECTION@.endpoint_host)" = "$domain" ] || exit 1
+[ "$(uci -q get network.@CLIENT_PEER_SECTION@.endpoint_port)" = @WG_PORT@ ] || exit 1
+lock=/var/run/knx-wg-refresh.lock
+if ! mkdir "$lock" 2>/dev/null; then
+ oldpid=$(cat "$lock/pid" 2>/dev/null || true)
+ case "$oldpid" in ''|*[!0-9]*) ;; *) kill -0 "$oldpid" 2>/dev/null && exit 0;; esac
+ rm -f "$lock/pid"
+ rmdir "$lock" 2>/dev/null || exit 0
+ mkdir "$lock" || exit 0
+fi
+echo $$ > "$lock/pid"
+cleanup() { rm -f "$lock/pid"; rmdir "$lock" 2>/dev/null || true; }
+trap cleanup EXIT HUP INT TERM
+if ! ip=$(resolve_public); then
+ logger -t knx-wg 'DoH failed or returned no public IPv4; retaining last valid endpoint'
+ exit 1
+fi
+[ ! -f "$paused" ] || exit 0
+previous=$(awk 'NR==1 {print $1}' "$state" 2>/dev/null || true)
+if [ "$previous" != "$ip" ]; then
+ printf '%s %s\n' "$ip" "$domain" > "$state.tmp"
+ chmod 600 "$state.tmp"
+ mv "$state.tmp" "$state"
+ pids=$(pidof dnsmasq || true)
+ [ -z "$pids" ] || kill -HUP $pids
+ logger -t knx-wg "Public DNS address updated to $ip"
+fi
+if ! wg show wg_home public-key >/dev/null 2>&1; then exit 0; fi
+peer=$(uci -q get network.@CLIENT_PEER_SECTION@.public_key)
+current=$(wg show wg_home endpoints | awk -v p="$peer" '$1==p {print $2}')
+if [ "$action" = --force ] || [ "$current" != "$ip:@WG_PORT@" ]; then
+ wg set wg_home peer "$peer" endpoint "$ip:@WG_PORT@"
+ logger -t knx-wg "Endpoint refreshed from certificate-verified DoH: $domain:@WG_PORT@ -> $ip"
+fi
+printf '%s %s %s\n' "$(date +%s)" "$ip" "$action" > /var/run/knx-wg-refresh.last
+printf 'DOMAIN=%s PUBLIC_IP=%s ENDPOINT_REFRESH_OK\n' "$domain" "$ip"

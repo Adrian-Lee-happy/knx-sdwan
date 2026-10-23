@@ -1,0 +1,5 @@
+#!/usr/bin/lua
+local n=require'nixio'
+assert(n.setgid(65534),'cannot use existing OpenClash bypass group')
+n.exec('/usr/bin/curl',unpack(arg))
+os.exit(127)

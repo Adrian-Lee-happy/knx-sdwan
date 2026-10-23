@@ -1,0 +1,11 @@
+#!/bin/sh
+trap 'exit 0' TERM INT
+while :; do
+ /usr/sbin/knx-uplink tick >/dev/null 2>&1 || true
+ stamp=$(cat /var/run/knx-uplink/wake 2>/dev/null)
+ for delay in $(seq 1 30); do
+  sleep 1 &
+  wait $! || true
+  [ "$stamp" = "$(cat /var/run/knx-uplink/wake 2>/dev/null)" ] || break
+ done
+done

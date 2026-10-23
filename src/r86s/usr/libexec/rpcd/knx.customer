@@ -1,0 +1,281 @@
+#!/usr/bin/lua
+local json = require 'luci.jsonc'
+local nixio = require 'nixio'
+require 'nixio.util'
+local fs = require 'nixio.fs'
+local registry_path = '/etc/knx-customers/ui-clients.json'
+local actions = {on=true, off=true, disconnect=true, reconnect=true}
+
+local function read_json(path)
+ local text = fs.readfile(path)
+ return text and json.parse(text) or nil
+end
+
+local function valid_id(id)
+ return type(id)=='string' and #id<=16 and id:match('^[a-z][a-z0-9_-]*$') ~= nil
+end
+
+local function registry()
+ local data = read_json(registry_path)
+ local result = {}
+ for _, c in ipairs(type(data)=='table' and data.customers or {}) do
+  if type(c)=='table' and valid_id(c.id) and type(c.interface)=='string'
+   and c.interface:match('^[a-zA-Z0-9_]+$') and type(c.peer_section)=='string'
+   and c.peer_section:match('^[a-zA-Z0-9_]+$') then result[#result+1]=c end
+ end
+ return result
+end
+
+-- Execute a literal executable and argv; never evaluate shell input.
+local function run(program, args)
+ local input, output = nixio.pipe()
+ if not input then return 127, '' end
+ local pid = nixio.fork()
+ if pid == 0 then
+  input:close()
+  nixio.dup(output, nixio.stdout)
+  nixio.dup(output, nixio.stderr)
+  output:close()
+  nixio.exec(program, unpack(args))
+  os.exit(127)
+ end
+ output:close()
+ if not pid then input:close(); return 127, '' end
+ local text = input:readall() or ''
+ input:close()
+ local _, kind, code = nixio.waitpid(pid)
+ return kind=='exited' and code or 128, text
+end
+
+local function find(id)
+ if not valid_id(id) then return nil end
+ for _, c in ipairs(registry()) do if c.id==id then return c end end
+end
+
+local function history(id)
+ return read_json('/var/run/knx-ui-'..id..'.json') or {requests={}}
+end
+
+local function safe_reason(text)
+ if type(text)~='string' then return nil end
+ text=text:match('^%s*(.-)%s*$')
+ if text=='' or text=='none' then return nil end
+ if #text>400 or text:find('[%z\1-\31\127]') then return 'Diagnostic text omitted; check local administrator logs.' end
+ local lower=text:lower()
+ if lower:find('-----begin',1,true) or lower:match('ssh%-ed25519%s+') or lower:match('ssh%-rsa%s+') or text:match('%a[%w+.-]*://[^/%s]+:[^@%s]+@') then return 'Sensitive diagnostic text redacted.' end
+ for _,field in ipairs({'password','passwd','token','secret','private[_ -]?key','preshared[_ -]?key','authorization'}) do
+  if lower:match(field..'%s*[:=]') then return 'Sensitive diagnostic text redacted.' end
+ end
+ return text
+end
+
+local function rejection_reason(output)
+ if type(output)~='string' then return nil end
+ local text=output:match('KNX refused operation; business OFF: ([^\r\n]+)')
+ if text then
+  -- Remove Lua filename/line prefixes, not the actual English rejection text.
+  for i=1,3 do local stripped,n=text:gsub('^[^:]+:%d+:%s*','',1);text=stripped;if n==0 then break end end
+  return safe_reason(text)
+ end
+ if output:find('Reconnect first',1,true) then return 'Reconnect first; peer is disconnected.' end
+ if output:find('pending network changes',1,true) then return 'Pending network changes; operation refused.' end
+ return nil
+end
+
+local function status(c)
+ local rc, text = run('/usr/sbin/knx-customer', {c.id, 'status'})
+ local s = {id=c.id, name=c.name, notes=c.notes, metadata_revision=tonumber(c.metadata_revision) or 0, model=c.model,
+  tunnel_ip=c.tunnel_ip, lan=c.lan, control_enabled=c.control_enabled==true,
+  configured=false, enabled=false, peer_present=false, vpn_state='unknown',
+  business_state='UNKNOWN', observed_at=os.time(), status_ok=rc==0}
+ local cfg_rc, cfg = run('/sbin/uci', {'-q','get','network.'..c.peer_section})
+ s.configured = cfg_rc==0 and cfg:match('^wireguard_')~=nil
+ local saved = text:match('saved_state=([a-z]+)')
+ local disabled = text:match('configured_disabled=([01])')
+ local business = text:match('business=([A-Z]+)')
+ local ready = text:match('candidate_ready=(%a+)')
+ if ready=='true' or ready=='false' then s.candidate_ready=ready=='true' end
+ local subnet = text:match('candidate_subnet=([^\r\n]+)')
+ if subnet and subnet:match('^%d+%.%d+%.%d+%.%d+/%d+$') then s.candidate_subnet=subnet end
+ local reason = text:match('candidate_reason=([^\r\n]+)')
+ if reason and #reason<=240 and not reason:find('[%z\1-\31\127]') then s.candidate_reason=safe_reason(reason) end
+ if s.candidate_ready==false then s.current_rejection_reason=safe_reason(reason) end
+ s.enabled = s.configured and disabled=='0'
+ s.peer_present = text:match('runtime_peer=present')~=nil
+ s.handshake_age = tonumber(text:match('handshake_age_seconds=(%-?%d+)'))
+ if s.handshake_age and s.handshake_age>=0 then s.last_handshake=os.time()-s.handshake_age end
+ if s.status_ok and s.configured then
+  if disabled=='1' and not s.peer_present then s.vpn_state='disconnected'
+  elseif disabled=='1' then s.vpn_state='mismatch'
+  elseif not s.peer_present then s.vpn_state='missing'
+  elseif text:match('handshake=never') then s.vpn_state='unhandshaken'
+  elseif s.handshake_age and s.handshake_age>=0 then
+   s.vpn_state=s.handshake_age<=180 and 'recent' or 'stale'
+  end
+  if saved=='disconnect' and disabled=='1' and not s.peer_present and business=='OFF' then
+   s.business_state='DISCONNECT'
+  elseif saved=='on' and business=='ON' and disabled=='0' and s.peer_present then
+   s.business_state='ON'
+  elseif saved=='off' and business=='OFF' and disabled=='0' and s.peer_present then
+   s.business_state='OFF'
+  end
+ end
+ if s.peer_present then
+  local key_rc, key = run('/sbin/uci', {'-q','get','network.'..c.peer_section..'.public_key'})
+  local tx_rc, transfers = run('/usr/bin/wg', {'show', c.interface, 'transfer'})
+  if key_rc==0 and tx_rc==0 then
+   key=key:match('^%s*(.-)%s*$')
+   for line in transfers:gmatch('[^\n]+') do
+    local p, rx, tx = line:match('^(%S+)%s+(%d+)%s+(%d+)')
+    if p==key then s.rx_bytes=tonumber(rx); s.tx_bytes=tonumber(tx) end
+   end
+  end
+ end
+ local h = history(c.id)
+ s.last_operation=h.last
+ return s
+end
+
+local function failure(message)
+ return {success=false, message=message}
+end
+
+-- Validate real UTF-8, including overlong, surrogate and out-of-range encodings.
+local function utf8_length(s)
+ if type(s)~='string' then return nil end
+ local i,count=1,0
+ while i<=#s do
+  local b=s:byte(i);local size,cp,minimum
+  if b<128 then size,cp,minimum=1,b,0
+  elseif b>=194 and b<=223 then size,cp,minimum=2,b-192,128
+  elseif b>=224 and b<=239 then size,cp,minimum=3,b-224,2048
+  elseif b>=240 and b<=244 then size,cp,minimum=4,b-240,65536
+  else return nil end
+  for j=1,size-1 do local x=s:byte(i+j);if not x or x<128 or x>191 then return nil end;cp=cp*64+x-128 end
+  if cp<minimum or cp>1114111 or (cp>=55296 and cp<=57343) then return nil end
+  i=i+size;count=count+1
+ end
+ return count
+end
+
+local function atomic_text(path,text)
+ local fd=nixio.open(path..'.tmp','w','600')
+ if not fd then return false end
+ local wrote=fd:writeall(text);fd:close()
+ if not wrote or not fs.rename(path..'.tmp',path) then fs.unlink(path..'.tmp');return false end
+ return true
+end
+
+-- This router's jsonc Lua binding truncates decoded NUL strings. Detect a real
+-- JSON NUL escape before decoding; a literal escaped backslash remains valid.
+local function has_nul_escape(raw)
+ local i=1
+ while i<=#raw do
+  if raw:sub(i,i)=='\\' then
+   if raw:sub(i+1,i+5)=='u0000' then return true end
+   i=i+2
+  else i=i+1 end
+ end
+ return false
+end
+
+local function update_metadata(req)
+ -- uhttpd/rpcd injects this transport field after checking the session ACL.
+ -- Permit the envelope field only; never use it as authority or persist it.
+ if req.ubus_rpc_session~=nil and (type(req.ubus_rpc_session)~='string' or #req.ubus_rpc_session~=32 or not req.ubus_rpc_session:match('^%x+$')) then return failure('会话参数格式无效') end
+ for key in pairs(req) do
+  if key~='customer' and key~='name' and key~='notes' and key~='expected_revision' and key~='ubus_rpc_session' then return failure('只能修改客户名称和备注') end
+ end
+ if not valid_id(req.customer) then return failure('客户标识无效') end
+ if type(req.name)~='string' or #req.name>256 or type(req.notes)~='string' or #req.notes>8000 then return failure('名称或备注长度无效') end
+ local name=req.name:match('^%s*(.-)%s*$')
+ local notes=req.notes:gsub('\r\n','\n'):gsub('\r','\n')
+ local nl,ml=utf8_length(name),utf8_length(notes)
+ if not nl or nl<1 or nl>64 or name:find('[%z\1-\31\127]') then return failure('名称须为 1–64 个字符，不能含换行或控制字符') end
+ if not ml or ml>2000 or notes:find('[%z\1-\8\11\12\14-\31\127]') then return failure('备注最多 2000 个字符，不能含非法控制字符') end
+ if type(req.expected_revision)~='string' or #req.expected_revision>10 or not req.expected_revision:match('^%d+$') then return failure('资料版本无效，请刷新后重试') end
+ local expected_revision=tonumber(req.expected_revision)
+ local lock=nixio.open('/var/lock/knx-ui-metadata.lock','w','600')
+ if not lock or not lock:lock('tlock') then if lock then lock:close() end;return failure('其他资料正在保存，请稍后重试') end
+ local ok,result=pcall(function()
+  local original=fs.readfile(registry_path)
+  local data=original and json.parse(original)
+  if type(data)~='table' or type(data.customers)~='table' then return failure('客户资料文件无效，未作修改') end
+  local target
+  for _,c in ipairs(data.customers) do if type(c)=='table' and c.id==req.customer then if target then return failure('客户登记重复，未作修改') end;target=c end end
+  if not target or not find(req.customer) then return failure('客户不存在') end
+  local rev=tonumber(target.metadata_revision) or 0
+  if expected_revision~=rev then return failure('资料已被其他页面更新，请取消后刷新再编辑') end
+  if target.name==name and (target.notes or '')==notes then return {success=true,message='资料未变化',metadata_revision=rev} end
+  target.name=name;target.notes=notes;target.metadata_revision=rev+1
+  if not atomic_text(registry_path..'.previous',original) then return failure('无法创建资料备份，未保存') end
+  if not atomic_text(registry_path,json.stringify(data)) then return failure('保存失败，原资料未替换') end
+  return {success=true,message='名称与备注已保存',metadata_revision=target.metadata_revision}
+ end)
+ lock:close()
+ return ok and result or failure('保存资料异常，请刷新确认；未调用任何 VPN 控制操作')
+end
+
+local function control(req)
+ local c = find(req.customer)
+ if not c or c.control_enabled~=true then return failure('客户不存在或未启用网页控制') end
+ if type(req.action)~='string' or not actions[req.action] then return failure('不允许的操作') end
+ if type(req.request_id)~='string' or #req.request_id<16 or #req.request_id>80
+  or not req.request_id:match('^[a-zA-Z0-9-]+$') then return failure('请求标识无效') end
+ local lock = nixio.open('/var/lock/knx-ui-control.lock', 'w', '600')
+ if not lock or not lock:lock('tlock') then if lock then lock:close() end; return failure('其他操作正在执行，请稍后刷新') end
+ local h = history(c.id)
+ for _, old in ipairs(h.requests or {}) do
+  if old.request_id==req.request_id then
+   lock:close()
+   if old.action~=req.action then return failure('请求标识已用于其他操作') end
+   return {success=old.success, returncode=old.returncode, duplicate=true,
+    message=old.success and '重复请求未再次执行' or old.message or '重复的失败请求未再次执行', reason=old.reason, customer=status(c)}
+  end
+ end
+ local rc, output = run('/usr/sbin/knx-customer', {c.id,req.action})
+ local actual = status(c)
+ local expected = req.action=='on' and 'ON' or req.action=='disconnect' and 'DISCONNECT' or 'OFF'
+ local ok = rc==0 and actual.status_ok and actual.business_state==expected
+ local reason
+ if not ok then
+  reason=rejection_reason(output)
+  if not reason then reason=rc==0 and 'The requested state could not be confirmed; refresh status.' or 'No specific rejection reason was returned; check current conditions in details.' end
+ end
+ local message = ok and '操作完成，服务端真实状态已确认' or '操作被拒绝或失败：'..reason
+ local item={action=req.action, timestamp=os.time(), success=ok, returncode=rc,
+  message=message, reason=reason, request_id=req.request_id}
+ h.requests=h.requests or {}
+ h.requests[#h.requests+1]=item
+ while #h.requests>32 do table.remove(h.requests,1) end
+ h.last={action=item.action, timestamp=item.timestamp, success=item.success,
+  returncode=item.returncode, message=item.message, reason=item.reason}
+ local path='/var/run/knx-ui-'..c.id..'.json'
+ local fd=nixio.open(path..'.tmp','w','600')
+ if fd then fd:writeall(json.stringify(h)); fd:close(); fs.rename(path..'.tmp',path) end
+ actual.last_operation=h.last
+ lock:close()
+ return {success=ok, returncode=rc, message=message, reason=reason, customer=actual}
+end
+
+if arg[1]=='list' then
+ print('{"list":{},"status":{"customer":"String"},"control":{"customer":"String","action":"String","request_id":"String"},"update_metadata":{"customer":"String","name":"String","notes":"String","expected_revision":"String"}}')
+elseif arg[1]=='call' then
+ local raw=io.read('*a') or ''
+ if arg[2]=='update_metadata' and has_nul_escape(raw) then print(json.stringify(failure('名称或备注不能包含 NUL 控制字符')));os.exit(0)end
+ local req=json.parse(raw)
+ if type(req)~='table' then req={} end
+ local ok, result=pcall(function()
+  if arg[2]=='list' then
+   local customers={}
+   for _, c in ipairs(registry()) do customers[#customers+1]=status(c) end
+   return {success=true, customers=customers, observed_at=os.time()}
+  elseif arg[2]=='status' then
+   local c=find(req.customer)
+   return c and {success=true,customer=status(c)} or failure('客户不存在')
+  elseif arg[2]=='control' then return control(req)
+  elseif arg[2]=='update_metadata' then return update_metadata(req)
+  else return failure('不允许的方法') end
+ end)
+ print(json.stringify(ok and result or failure('后台读取或执行异常，请检查服务端状态')))
+else os.exit(1) end

@@ -1,0 +1,9 @@
+#!/bin/sh
+# Preserve the existing OpenClash policy rule when netifd reloads interface rules.
+[ "$INTERFACE" = wg_customers ] || exit 0
+case "$ACTION" in
+ ifup|ifupdate)
+  ip -4 route show table @OPENCLASH_TABLE@ | grep -q '@OPENCLASH_TUN_DEVICE@' || exit 0
+  ip -4 rule show | grep -q 'fwmark @OPENCLASH_MARK@ lookup @OPENCLASH_TABLE@' || ip -4 rule add pref 1888 fwmark @OPENCLASH_MARK@ lookup @OPENCLASH_TABLE@
+  ;;
+esac

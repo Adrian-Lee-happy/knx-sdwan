@@ -1,0 +1,6 @@
+set knx_direct_real { type ipv4_addr; flags interval; }
+set knx_direct_lease { type ifname; flags timeout; timeout 45s; }
+chain knx_direct_snat {
+ type nat hook postrouting priority 95; policy accept;
+ oifname @knx_direct_lease iifname "wg_home" ip saddr @HOME_CIDR@ ip daddr @knx_direct_real counter masquerade
+}

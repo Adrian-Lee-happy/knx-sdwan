@@ -1,0 +1,38 @@
+include "/etc/knx-customers/a-gate.nft"
+chain knx_early_guard {
+ type filter hook prerouting priority -190; policy accept;
+ iifname "wg_customers" meta nfproto ipv6 counter drop
+ iifname "wg_customers" ct state invalid counter drop
+ iifname "br-lan" ip saddr @HOME_CIDR@ ip daddr @knx_direct_known iifname != @knx_direct_lease counter drop
+ iifname "br-lan" ip saddr @HOME_CIDR@ ip daddr @knx_direct_known ip daddr != @knx_a_business counter drop
+ iifname "wg_customers" ip saddr @knx_direct_known ip daddr @HOME_CIDR@ iifname != @knx_direct_lease counter drop
+ iifname "wg_customers" ip saddr @knx_direct_known ip daddr @HOME_CIDR@ ip saddr != @knx_a_business counter drop
+ iifname "wg_customers" ct state established,related counter accept
+ iifname "wg_customers" ip saddr @knx_direct_lan ip daddr @HOME_CIDR@ iifname @knx_direct_lease counter accept
+ iifname "wg_customers" ip saddr @CLIENT_WG_IP@ ip daddr @SERVER_WG_IP@ ip protocol icmp counter accept
+ iifname "wg_customers" counter drop
+}
+chain knx_forward_guard {
+ type filter hook forward priority -10; policy accept;
+ iifname "wg_customers" meta nfproto ipv6 counter drop
+ oifname "wg_customers" meta nfproto ipv6 counter drop
+ oifname "wg_customers" ip daddr != @WG_CIDR@ oifname != @knx_direct_lease counter drop
+ iifname "wg_customers" ip saddr != @WG_CIDR@ iifname != @knx_direct_lease counter drop
+ oifname "wg_customers" ip daddr @knx_direct_known oifname != @knx_direct_lease counter drop
+ oifname "wg_customers" ip daddr @knx_direct_known ip daddr != @knx_a_business counter drop
+ iifname "wg_customers" ct state established,related counter accept
+ oifname "wg_customers" ct state established,related counter accept
+ iifname "wg_customers" iifname @knx_direct_lease oifname "br-lan" ip saddr @knx_direct_lan ip daddr @HOME_CIDR@ counter accept
+ iifname "br-lan" iifname @knx_direct_lease oifname "wg_customers" ip saddr @HOME_CIDR@ ip daddr @knx_a_business counter accept
+ iifname "br-lan" oifname "wg_customers" ip saddr @HOME_CIDR@ ip daddr @CLIENT_WG_IP@ tcp dport {22,80} counter accept
+ iifname "br-lan" oifname "wg_customers" ip saddr @HOME_CIDR@ ip daddr @CLIENT_WG_IP@ ip protocol icmp counter accept
+ iifname "wg_customers" counter drop
+ oifname "wg_customers" counter drop
+}
+chain knx_direct_output_guard {
+ type filter hook output priority -190; policy accept;
+ oifname "wg_customers" ip daddr != @WG_CIDR@ oifname != @knx_direct_lease counter drop
+ ip daddr @knx_direct_known oifname != @knx_direct_lease counter drop
+ ip daddr @knx_direct_known ip daddr != @knx_a_business counter drop
+ ip daddr @knx_direct_known ip saddr != @HOME_CIDR@ counter drop
+}

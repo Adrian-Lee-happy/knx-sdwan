@@ -1,0 +1,27 @@
+# REVIEW-ONLY FRAGMENTS, not a replacement for /etc/config/network.
+# Keys deliberately absent: provision fresh keys ON DEVICE, never in this file.
+config interface 'wg_customers'
+ option proto 'wireguard'
+ option listen_port '@WG_PORT@'
+ option mtu '1280'
+ list addresses '@SERVER_WG_IP@/@WG_PREFIX@'
+
+config wireguard_wg_customers '@SERVER_PEER_SECTION@'
+ option description 'Maintenance gateway'
+ option disabled '0'
+ option route_allowed_ips '1'
+ list allowed_ips '@CLIENT_WG_IP@/32'
+
+config rule 'knx_to_lan'
+ option priority '1700'
+ option src '@PRIVATE_LAN_CIDR@'
+ option dest '@HOME_CIDR@'
+ option lookup 'main'
+
+config rule 'knx_to_tunnel'
+ option priority '1702'
+ option dest '@WG_CIDR@'
+ option lookup 'main'
+
+# DO NOT add a main-table catch-all to the private maintenance LAN.
+# Business routes and priorities 1709/1710 belong exclusively to the controller.

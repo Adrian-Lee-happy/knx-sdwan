@@ -1,0 +1,5 @@
+#!/bin/sh
+case "$INTERFACE:$ACTION" in
+ wan:ifup|wan:ifdown) /usr/sbin/knx-direct-agent invalidate >/dev/null 2>&1 ;;
+ wan:ifupdate) /usr/sbin/knx-direct-agent watch >/dev/null 2>&1 ;;
+esac

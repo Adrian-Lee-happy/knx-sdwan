@@ -1,0 +1,2 @@
+# Test runtime only. Install outside this repository; never vendor site data.
+lupa==2.6

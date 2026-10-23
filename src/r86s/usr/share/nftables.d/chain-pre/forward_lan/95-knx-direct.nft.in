@@ -1,0 +1,1 @@
+iifname "br-lan" iifname @knx_direct_lease oifname "wg_customers" ip saddr @HOME_CIDR@ ip daddr @knx_a_business counter accept comment "KNX single active customer"

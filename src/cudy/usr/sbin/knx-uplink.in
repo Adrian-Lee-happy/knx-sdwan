@@ -1,0 +1,123 @@
+#!/usr/bin/lua
+local D=dofile('/usr/lib/knx-direct.lua')
+local dir='/var/run/knx-uplink'
+D.fs.mkdir(dir,'700')
+local action=arg[1]or'status'
+local statefile=dir..'/state.json'
+local function transition(s,ok,now,available)
+ s.good=ok and (s.good or 0)+1 or 0
+ s.bad=ok and 0 or (s.bad or 0)+1
+ if not available or (s.active and s.bad>=2)then s.active=false;s.last_down=now end
+ if available and not s.active and s.good>=2 and now-(s.last_down or 0)>=60 then s.active=true end
+ return s
+end
+if action=='selftest'then
+ local s={};transition(s,true,100,true);assert(not s.active)
+ transition(s,true,130,true);assert(s.active)
+ transition(s,false,160,true);assert(s.active)
+ transition(s,false,190,true);assert(not s.active)
+ transition(s,true,220,true);assert(not s.active)
+ transition(s,true,250,true);assert(s.active)
+ transition(s,true,251,false);assert(not s.active)
+ print('STATE_MACHINE_SELFTEST_PASS');os.exit(0)
+end
+if action=='status'then print(D.json.stringify(D.read(statefile,{})));os.exit(0)end
+assert(action=='tick'or action=='cleanup','invalid operation')
+local lock=D.lock('/var/lock/knx-uplink.lock')
+local st=D.read(statefile,{})
+st.links=st.links or{}
+local spec={wan={table=192,pref=1695,ports='43900-43909'},wwan={table=193,pref=1696,ports='43910-43919'}}
+local function ip(a)D.ip(a)end
+local function remove_probe(c)
+ if not c then return end
+ D.ip({'-4','rule','del','pref',tostring(c.pref),'from',c.address..'/32','ipproto','tcp','sport',c.ports,'lookup',tostring(c.table)},true)
+ D.ip({'-4','route','del','default','via',c.gateway,'dev',c.device,'proto','187','metric','187','table',tostring(c.table)},true)
+ D.ip({'-4','route','del',c.network,'dev',c.device,'proto','187','metric','187','table',tostring(c.table)},true)
+ D.ip({'-4','route','del','unreachable','default','proto','187','metric','42760','table',tostring(c.table)},true)
+end
+local function withdraw()
+ D.ip({'-4','route','del','default','dev','@PHYSICAL_WAN_DEVICE@','proto','187','metric','10'},true)
+end
+local function log(s)D.run('/usr/bin/logger',{'-t','knx-uplink',s})end
+local function candidate(name)
+ local rc,out=D.run('/bin/ubus',{'call','network.interface.'..name,'status'},nil,3)
+ local v=D.json.parse(out)
+ if rc~=0 or type(v)~='table'or not v.up or v.proto~='dhcp'then return nil end
+ local dev=v.l3_device
+ if type(dev)~='string'or not dev:match('^[%w_.:-]+$')then return nil end
+ if name=='wan'and(dev~='@PHYSICAL_WAN_DEVICE@'or D.fs.readfile('/sys/class/net/@PHYSICAL_WAN_DEVICE@/carrier')~='1\n')then return nil end
+ local a=v['ipv4-address']or{};if #a~=1 or not D.ipnum(a[1].address)then return nil end
+ local first,last,_,net=D.range(a[1].address..'/'..a[1].mask);if not net then return nil end
+ local gw
+ for _,r in ipairs(v.route or{})do if r.target=='0.0.0.0'and r.mask==0 then if gw and gw~=r.nexthop then return nil end;gw=r.nexthop end end
+ local g=D.ipnum(gw);if not g or g<=first or g>=last then return nil end
+ local q=spec[name]
+ return{address=a[1].address,network=net,gateway=gw,device=dev,table=q.table,pref=q.pref,ports=q.ports}
+end
+local function same(a,b)return a and b and a.address==b.address and a.network==b.network and a.gateway==b.gateway and a.device==b.device end
+local function install_probe(c)
+ local tableid=tostring(c.table)
+ ip({'-4','route','replace',c.network,'dev',c.device,'src',c.address,'proto','187','metric','187','table',tableid})
+ ip({'-4','route','replace','default','via',c.gateway,'dev',c.device,'src',c.address,'proto','187','metric','187','table',tableid})
+ ip({'-4','route','replace','unreachable','default','proto','187','metric','42760','table',tableid})
+ local rules=D.ip({'-4','rule','show'})
+ local needle='\n'..c.pref..':'
+ if not ('\n'..rules):find(needle,1,true)then
+  ip({'-4','rule','add','pref',tostring(c.pref),'from',c.address..'/32','ipproto','tcp','sport',c.ports,'lookup',tableid})
+ end
+end
+local function health(c)
+ for _,p in ipairs({{host='dns.alidns.com',ip='223.6.6.6',path='resolve'},{host='cloudflare-dns.com',ip='1.1.1.1',path='dns-query'}})do
+  local rc,out=D.run('/usr/sbin/knx-uplink-http',{'--noproxy','*','--interface',c.address,'--local-port',c.ports,'--resolve',p.host..':443:'..p.ip,'--connect-timeout','2','--max-time','4','-fsS','-H','accept: application/dns-json','https://'..p.host..'/'..p.path..'?name=example.com&type=A'},nil,6)
+  local v=D.json.parse(out)
+  if rc==0 and type(v)=='table'and v.Status==0 then
+   for _,a in ipairs(v.Answer or{})do
+    if a.type==1 and D.ipnum(a.data)and D.run('/usr/sbin/knx-wg-refresh',{'--validate-ip',a.data},nil,2)==0 then return true,p.host end
+   end
+  end
+ end
+ return false,'HTTPS/DNS probes failed'
+end
+local ok,err=pcall(function()
+ if action=='cleanup'then
+  withdraw();for _,l in pairs(st.links)do remove_probe(l.route)end
+  st.wan={active=false};st.links={};st.stopped_at=os.time();D.write(statefile,st)
+  print('UPLINK_OWN_ROUTES_CLEANED');return
+ end
+ local now=os.time()
+ local previous=st.wan and st.wan.active or false
+ for _,name in ipairs({'wan','wwan'})do
+  local l=st.links[name]or{};local c=candidate(name)
+  if not same(l.route,c)then
+   if name=='wan'then withdraw();st.wan={active=false,last_down=now-60}end
+   remove_probe(l.route);l.route=nil;l.healthy=false
+   if c then
+    -- Journal ownership before installing routes, so cleanup survives a partial failure.
+    l.route=c;st.links[name]=l;D.write(statefile,st);install_probe(c)
+   end
+  elseif c then install_probe(c)end
+  if c then l.healthy,l.detail=health(c)else l.healthy=false;l.detail='no active DHCP uplink'end
+  l.checked_at=os.time();l.available=c~=nil;st.links[name]=l
+ end
+ local w=st.links.wan
+ st.wan=transition(st.wan or{},w.healthy,os.time(),w.available)
+ if st.wan.active then
+  local fresh=candidate('wan')
+  if same(fresh,w.route)then
+   ip({'-4','route','replace','default','via',fresh.gateway,'dev','@PHYSICAL_WAN_DEVICE@','src',fresh.address,'proto','187','metric','10'})
+  else withdraw();st.wan={active=false,last_down=os.time(),good=0,bad=1}end
+ else withdraw()end
+ st.selected=st.wan.active and'wan'or(st.links.wwan.healthy and'wwan'or'unverified-or-none')
+ st.updated_at=os.time();D.write(statefile,st)
+ if previous~=st.wan.active then
+  log(st.wan.active and'WAN healthy: promoted @PHYSICAL_WAN_DEVICE@ default metric 10; WWAN remains standby'or'WAN unavailable: withdrew promoted default; using netifd fallback')
+  D.run('/usr/sbin/knx-wg-refresh',{'--force'},nil,35)
+ end
+ print(D.json.stringify(st))
+end)
+if not ok then
+ withdraw();st.wan={active=false,error=tostring(err)};st.updated_at=os.time();pcall(D.write,statefile,st)
+ log('Controller error: removed only owned WAN promotion; netifd fallback retained')
+ io.stderr:write(tostring(err)..'\n')
+end
+lock:close();os.exit(ok and 0 or 1)

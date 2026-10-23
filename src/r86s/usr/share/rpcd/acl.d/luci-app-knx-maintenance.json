@@ -1,0 +1,7 @@
+{
+  "luci-app-knx-maintenance": {
+    "description": "KNX 客户维护：只读状态与独立控制权限",
+    "read": { "ubus": { "knx.customer": [ "list", "status" ] } },
+    "write": { "ubus": { "knx.customer": [ "control", "update_metadata" ] } }
+  }
+}

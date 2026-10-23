@@ -1,0 +1,3 @@
+include "/etc/knx-direct/known.nft"
+set knx_direct_lease { type ifname; flags timeout; timeout 45s; }
+set knx_direct_lan { type ipv4_addr; flags interval; }

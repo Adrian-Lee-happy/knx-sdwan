@@ -1,0 +1,8 @@
+* text=auto eol=lf
+*.lua text eol=lf
+*.in text eol=lf
+*.nft text eol=lf
+*.js text eol=lf
+*.cjs text eol=lf
+*.py text eol=lf
+*.md text eol=lf

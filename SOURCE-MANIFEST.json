@@ -11,7 +11,7 @@
       "source_basename": "knx-direct-controller.lua",
       "path": "src/r86s/usr/sbin/knx-direct-controller.in",
       "source_sha256": "acb0801b96d38733aa5d3f41ad0d959e4a05f922fe67e36039eaf5da0ef6657e",
-      "publication_sha256": "7370e6b39a9755d0d12d785cb1a79fd3739f3f92a137232ea6e787e7b3522c73"
+      "publication_sha256": "0d8e0ba5fb95eec8f7bb339d757c93992c9328f5d8470ef5767e603e68698c27"
     },
     {
       "source_basename": "knx-direct-wrapper.sh",

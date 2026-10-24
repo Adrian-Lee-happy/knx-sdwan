@@ -1,5 +1,13 @@
 # V1.0 私有发布副本审查
 
+## 修订：2026-10-24，排除 throw 路由的误报
+
+控制器冲突检查增加 `r.type ~= 'throw'` 条件：throw 只结束当前路由表查找，不视为真实转发目的归属。unicast、blackhole、unreachable、prohibit、缺省/未知类型的重叠仍拒绝；有 throw 同时存在普通冲突路由也继续拒绝。只排除类型，不豁免整个策略路由表，也不删除 OpenClash 路由。
+
+13 项离线测试通过，包含新增回归测试。R86S 已完成 root-only 备份、设备内 Lua 语法与夹具回归、原子替换及管理 Ping/HTTP 复核。既有监控自然刷新后，真实客户 LAN 候选从拒绝恢复为 ready，无拒绝原因；业务始终 OFF，管理 Peer 保留。没有重载网络、防火墙、WireGuard 或 OpenClash，没有在本轮执行 ON 或重新验收目标业务设备。
+
+生产修复后的未模板化控制器 SHA-256 为 `38fe567daeba3f1a61f030bb6462c853c2aae34468170af47ea391811c04b9dd`。SOURCE-MANIFEST 的 source_sha256 保留最初归档来源摘要，publication_sha256 更新为修订后模板摘要。设备备份、真实候选网段、密码及运行日志不随修订上传。该修订不扩大 V1.0 的多客户或故障恢复验收范围。
+
 日期：2026-10-23。目标为指定所有者的 `knx-sdwan` **Private** 仓库；未添加开源许可证。
 
 ## 来源和脱敏

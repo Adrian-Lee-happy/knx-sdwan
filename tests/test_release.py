@@ -122,6 +122,47 @@ class LuaLogicTests(unittest.TestCase):
         transition(s, True, 251, False)
         self.assertFalse(s.active)
 
+    def test_only_throw_routes_bypass_route_conflict_check(self):
+        import re
+        lua = self.runtime()
+        d = lua.execute((ROOT / 'src/common/usr/lib/knx-direct.lua').read_text(encoding='utf-8'))
+        lua.globals().TEST_D = d
+        lua.execute("""
+            TEST_D.run=function(program,args)
+                if program=='/sbin/ip' then return 0,'ROUTES' end
+                return 1,''
+            end
+            TEST_D.json.parse=function()return TEST_ROUTES end
+            package.preload['uci']=function()return {cursor=function()return {foreach=function()end}end}end
+        """)
+        source = (ROOT / 'src/r86s/usr/sbin/knx-direct-controller.in').read_text(encoding='utf-8')
+        values = render.parameters(CONFIG)
+        source = re.sub(r'@([A-Z][A-Z0-9_]*)@', lambda m: values[m[1]], source)
+        section = source[source.index('local function conflict('):source.index('local function known(')]
+        check = lua.execute("""
+            local D=TEST_D
+            local clients={a={lan='10.61.1.0/24',tunnel='10.62.0.11'}}
+            local HOME='10.61.1.0/24'
+            local function pub()return 'fixture-only'end
+        """ + section + '\nreturn conflict')
+        customer = lua.table()
+        for route_type in ('throw', 'unicast', 'blackhole', 'unreachable', 'prohibit', None, 'unknown'):
+            with self.subTest(route_type=route_type):
+                route = lua.table_from({'dst': '10.0.0.0/8', 'table': 354})
+                if route_type is not None:
+                    route.type = route_type
+                lua.globals().TEST_ROUTES = lua.table_from([route])
+                result = check(customer, '10.60.0.0/24')
+                if route_type == 'throw':
+                    self.assertIsNone(result)
+                else:
+                    self.assertIn('overlaps an existing route', result)
+        lua.globals().TEST_ROUTES = lua.table_from([
+            lua.table_from({'type': 'throw', 'dst': '10.0.0.0/8', 'table': 354}),
+            lua.table_from({'type': 'unicast', 'dst': '10.60.0.0/24', 'table': 'main'}),
+        ])
+        self.assertIn('overlaps an existing route', check(customer, '10.60.0.0/24'))
+
     def test_agent_no_wan_and_query_failure_refuse_activation(self):
         text = (ROOT / 'src/cudy/usr/sbin/knx-direct-agent.in').read_text(encoding='utf-8').split('\n', 1)[1]
         values = render.parameters(CONFIG)

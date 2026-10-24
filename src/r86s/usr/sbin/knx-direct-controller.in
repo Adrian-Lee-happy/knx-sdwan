@@ -41,7 +41,7 @@ local function conflict(c,net)
  local rc,text=D.run('/sbin/ip',{'-j','-4','route','show','table','all'});local routes=D.json.parse(text)
  if rc~=0 or type(routes)~='table'then return'route inspection unavailable'end
  for _,r in ipairs(routes)do
-  if r.dst and r.dst~='default'and r.dst~='0.0.0.0/0'and tostring(r.table)~='191'then
+  if r.type~='throw'and r.dst and r.dst~='default'and r.dst~='0.0.0.0/0'and tostring(r.table)~='191'then
    local p=r.dst:find('/')and r.dst or r.dst..'/32'
    if D.overlap(net,p)then return'overlaps an existing route: '..p end
   end

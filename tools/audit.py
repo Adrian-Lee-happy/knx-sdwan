@@ -14,7 +14,7 @@ SAFE_IPS = {
     '0.0.0.0', '10.0.0.0', '172.16.0.0', '192.168.0.0',
     '1.1.1.1', '1.0.0.1', '223.5.5.5', '223.6.6.6',
 }
-EXAMPLE_POOLS = tuple(ipaddress.ip_network(s) for s in ('10.60.0.0/24', '10.61.1.0/24', '10.62.0.0/24'))
+EXAMPLE_POOLS = tuple(ipaddress.ip_network(s) for s in ('10.60.0.0/24', '10.61.1.0/24', '10.62.0.0/24', '10.63.1.0/24'))
 RULES = {
     'private-key-header': re.compile(r'-----BEGIN (?:[A-Z0-9]+ )?PRIVATE KEY-----'),
     'wg-key-shaped-value': re.compile(r'(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{43}=(?![A-Za-z0-9+/=])'),

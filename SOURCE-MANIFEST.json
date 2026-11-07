@@ -83,7 +83,8 @@
       "source_basename": "knx-direct-cudy-guard.nft",
       "path": "src/cudy/etc/nftables.d/90-knx-stage1.nft.in",
       "source_sha256": "4d70208ac80a221677fc15fd8b5c2c434d4c691aa773a45932777664d75454d9",
-      "publication_sha256": "a639418489b0d5f9af2c1b4fb5a8a1c525b4f7b901e1013be088ff7f71c44d2b"
+      "publication_sha256": "1a427c9341a02bd437ec1e32784e4b586418a09ebbc8514aa3f33556906464cf",
+      "revision_note": "2026-11-07: reviewed generic gateway compatibility update; original source hash retained as baseline provenance."
     },
     {
       "source_basename": "knx-direct-cudy-forward.nft",
@@ -187,5 +188,10 @@
       "source_sha256": "7d89bb6bc1d2de37bacd8a8e505584f58af43bc8c88bed1d1318f8a5b88aac48",
       "publication_sha256": "e9f25c4a7e4266223d6d27c30669df53b7cd75c8dee44b7b786a84540ef0fd95"
     }
-  ]
+  ],
+  "compatibility_update_20261107": {
+    "description": "Generic source changes and documentation only; no production installer, credentials, site config or raw logs included.",
+    "new_adapter": "src/cudy/usr/sbin/knx-direct-reset",
+    "validation_scope": "Second gateway management and negative activation checks; real second-site business and multi-site positive switching remain unverified."
+  }
 }

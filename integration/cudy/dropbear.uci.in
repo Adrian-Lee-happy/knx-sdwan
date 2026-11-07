@@ -1,0 +1,16 @@
+# Review-only additions: preserve existing SSH listeners and authorized_keys.
+# Confirm this firmware supports named Dropbear instances and interface bindings.
+# Provision the operator public key and restricted Agent public key first.
+config dropbear 'knx_wg'
+ option Interface 'wg_home'
+ option Port '22'
+ option PasswordAuth 'off'
+ option RootPasswordAuth 'off'
+ option GatewayPorts 'off'
+
+config dropbear 'knx_lan'
+ option Interface 'lan'
+ option Port '22'
+ option PasswordAuth 'off'
+ option RootPasswordAuth 'off'
+ option GatewayPorts 'off'

@@ -1,6 +1,7 @@
 # REVIEW-ONLY fragments; keys absent, never import as a whole network file.
 config interface 'wg_home'
  option proto 'wireguard'
+ option listen_port '@CLIENT_LISTEN_PORT@'
  option mtu '1280'
  option nohostroute '1'
  list addresses '@CLIENT_WG_IP@/32'

@@ -4,6 +4,8 @@
 
 ## 1. 适配条件
 
+新增第二台网关时先读[增量登记与设备兼容](additional-customer.md)：不要用新站点生成的基础 rootfs 覆盖已有控制器。可选 `client_listen_port` 默认 51831；先核实端口冲突和新设备实际物理 WAN 名称。
+
 - 现场基线：R86S/iStoreOS 24.10 系列、Cudy TR3000/ImmortalWrt 24.10 系列，fw4/nftables、IPv4 WireGuard。
 - Lua 5.1、`luci.jsonc`、`nixio`/`nixio.fs`/`nixio.util`、Lua UCI、rpcd、LuCI JavaScript View；不能只假设“有 LuCI”就具备所有 Lua 兼容模块。
 - `wg`、支持 JSON 和策略端口选择器的 ip-full、conntrack、ubus、jsonfilter、curl（有效 CA 和 HTTPS）、sha256sum、setsid、procd、BusyBox 常用工具。
@@ -44,7 +46,7 @@ V1.0 的 Peer 恢复代码没有完整 PSK 重新装载逻辑；**不要将需�
 1. 对照生成的 MANIFEST 安装共享库和 Agent；目录、JSON、私钥为 root-only，执行脚本 700，LuCI 静态文件/菜单/ACL 644，rpcd 后台 700。不要给 Web 进程写入核心脚本的权限。
 2. 在 Cudy 和 R86S 分别审阅 `integration`：独立 `knx` 区、input/forward REJECT、仅指定管理例外；R86S 添加新 WG listener，不改个人 WG。密钥只在设备内补入；Cudy 不设 WG 默认路由。
 3. 两端放置 nft 定义和早期 guard。R86S `a-gate.nft` 初始为空；known 只预置私有维护 LAN，真实 WAN 候选以后逐步登记；安装私有维护到家庭路由器的租约 input 片段。
-4. fw4 include 在重载后调用 reset/reconcile，安全回到 OFF。在加载正向 UCI 规则前，确认早期 guard 已编译到规则集，不能出现“正向规则已开但 guard 缺失”的窗口。
+4. fw4 include 在重载后调用 Shell reset 包装器，由它执行 Lua Agent reset，安全回到 OFF；不能直接把 Lua Agent 配成 Shell include。在加载正向 UCI 规则前，确认早期 guard 已编译到规则集，不能出现“正向规则已开但 guard 缺失”的窗口。
 5. Cudy 表 189 需要家庭前缀经 `wg_home` 及 unreachable 默认；在既有 WG 接口事件上调用 hotplug 中相同逻辑或明确初始化，不重建运行中的 WG。表 190/191 的业务路由只能由控制器创建。
 6. R86S 保留正确的 1700/1702；不得增加旧的私有 LAN → main 优先级 1701。不要与 Cudy 的合法同号规则混淆。
 7. Cudy 的物理 WAN/WWAN 保持已有 DHCP 客户端和 LAN→WAN/masquerade。合并 WAN metric 30、WWAN metric 20、defaultroute=1。健康管理器只拥有 WAN metric 10 路由；不要导入已有旧 Endpoint 主机路由。确认当前 netifd 实际支持 `nohostroute=1`。

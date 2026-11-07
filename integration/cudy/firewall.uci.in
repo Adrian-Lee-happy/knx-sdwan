@@ -1,6 +1,9 @@
 # REVIEW-ONLY fragments. Keep physical WAN and WWAN in existing untrusted zone.
 # Existing wan zone must retain LAN->WAN forwarding and masquerade for internet.
 # Never add wan->knx forwarding or an unconditional knx->wan forwarding section.
+# After backup and recovery checks, merge input/forward REJECT into the EXISTING
+# WAN zone. Preserve LAN->WAN forwarding/masquerade and a bounded local management
+# rule while deploying. Disable unnecessary UPnP/NAT-PMP independently.
 config zone 'knx'
  option name 'knx'
  list network 'wg_home'
@@ -48,5 +51,15 @@ config rule 'knx_management_ping'
 
 config include 'knx_direct_reset'
  option type 'script'
- option path '/usr/sbin/knx-direct-agent'
+ option path '/usr/sbin/knx-direct-reset'
  option fw4_compatible '1'
+
+# WireGuard transport only, not SSH/Web. Handles changed response source under
+# same-LAN masquerade; WireGuard cryptographic peer authentication still applies.
+config rule 'knx_wg_transport'
+ option src 'wan'
+ option proto 'udp'
+ option src_port '@WG_PORT@'
+ option dest_port '@CLIENT_LISTEN_PORT@'
+ option family 'ipv4'
+ option target 'ACCEPT'

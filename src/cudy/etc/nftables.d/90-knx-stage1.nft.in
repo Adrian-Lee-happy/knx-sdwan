@@ -10,3 +10,19 @@ chain knx_forward_guard {
  iifname "wg_home" counter drop
  oifname "wg_home" counter drop
 }
+
+# Reject private maintenance traffic before optional proxy hooks when OFF.
+# The source prefix must arrive on the trusted private LAN, never physical WAN.
+chain knx_private_early_guard {
+ type filter hook prerouting priority -190; policy accept;
+ iifname "wg_home" meta nfproto ipv6 counter drop
+ iifname "wg_home" ct state invalid counter drop
+ iifname "br-lan" ip daddr @HOME_CIDR@ ip saddr != @PRIVATE_LAN_CIDR@ counter drop
+ iifname "br-lan" ip daddr @HOME_CIDR@ iifname != @knx_direct_lease counter drop
+ iifname "wg_home" ip saddr {@HOME_CIDR@,@SERVER_WG_IP@} ip daddr @CLIENT_WG_IP@ tcp dport {22,80} counter accept
+ iifname "wg_home" ip saddr {@HOME_CIDR@,@SERVER_WG_IP@} ip daddr @CLIENT_WG_IP@ ip protocol icmp counter accept
+ iifname "wg_home" ct state established,related counter accept
+ iifname "wg_home" ip saddr @HOME_CIDR@ ip daddr @PRIVATE_LAN_CIDR@ iifname @knx_direct_lease counter accept
+ iifname "wg_home" ip saddr @HOME_CIDR@ ip daddr @knx_direct_real iifname @knx_direct_lease counter accept
+ iifname "wg_home" counter drop
+}

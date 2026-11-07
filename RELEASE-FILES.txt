@@ -4,13 +4,18 @@ README.md
 RELEASE-FILES.txt
 SOURCE-MANIFEST.json
 config/site.example.json
+docs/additional-customer.md
 docs/architecture.md
 docs/deployment.md
+docs/maintenance-device-management-plan-v1.1.md
 docs/release-review.md
 docs/security.md
 docs/testing.md
+docs/validation-2026-11-07.md
+integration/cudy/dropbear.uci.in
 integration/cudy/firewall.uci.in
 integration/cudy/network.uci.in
+integration/r86s/additional-customer.uci.in
 integration/r86s/firewall.uci.in
 integration/r86s/network.uci.in
 src/common/etc/init.d/knx-direct
@@ -26,6 +31,7 @@ src/cudy/etc/nftables.d/89-knx-direct.nft.in
 src/cudy/etc/nftables.d/90-knx-stage1.nft.in
 src/cudy/usr/lib/knx-wg-public-ip.sh
 src/cudy/usr/sbin/knx-direct-agent.in
+src/cudy/usr/sbin/knx-direct-reset
 src/cudy/usr/sbin/knx-uplink-http
 src/cudy/usr/sbin/knx-uplink-loop
 src/cudy/usr/sbin/knx-uplink.in
@@ -52,6 +58,7 @@ src/r86s/usr/share/rpcd/acl.d/luci-app-knx-maintenance.json
 src/r86s/www/luci-static/resources/view/knx/maintenance.js
 tests/luci-view.test.cjs
 tests/requirements.txt
+tests/test_customer_gateway.py
 tests/test_public_ipv4.py
 tests/test_release.py
 tools/audit.py

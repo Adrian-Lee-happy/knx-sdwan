@@ -19,7 +19,10 @@ RFC1918 = tuple(ipaddress.ip_network(p) for p in ('10.0.0.0/8', '172.16.0.0/12',
 
 
 def parameters(cfg):
-    if not isinstance(cfg, dict) or set(cfg) != REQUIRED:
+    if isinstance(cfg, dict):
+        cfg = dict(cfg)
+        cfg.setdefault('client_listen_port', 51831)
+    if not isinstance(cfg, dict) or set(cfg) != REQUIRED | {'client_listen_port'}:
         raise ValueError('Configuration keys must exactly match site.example.json')
     nets = []
     for field in ('home_cidr', 'private_lan_cidr', 'wg_cidr'):
@@ -50,6 +53,8 @@ def parameters(cfg):
         raise ValueError('ASCII DNS hostname required')
     if type(cfg['wg_port']) is not int or not 1024 <= cfg['wg_port'] <= 65535:
         raise ValueError('WG UDP port must be an integer from 1024 to 65535')
+    if type(cfg['client_listen_port']) is not int or not 1024 <= cfg['client_listen_port'] <= 65535:
+        raise ValueError('Client listen port must be an integer from 1024 to 65535')
     if type(cfg['openclash_table']) is not int or not 256 <= cfg['openclash_table'] <= 32765:
         raise ValueError('Invalid optional OpenClash table')
     if not isinstance(cfg['openclash_mark'], str) or not re.fullmatch(r'0x[0-9a-f]{1,8}', cfg['openclash_mark']):
@@ -109,7 +114,7 @@ def render(cfg, output):
             mode = 0o644
         p.chmod(mode)
         manifest.append({'path': relative, 'mode': oct(mode), 'sha256': hashlib.sha256(p.read_bytes()).hexdigest()})
-    (output / 'MANIFEST.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+    (output / 'MANIFEST.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8', newline='\n')
     print('Rendered %d files into a new local bundle. No router contacted.' % len(plans))
     return manifest
 

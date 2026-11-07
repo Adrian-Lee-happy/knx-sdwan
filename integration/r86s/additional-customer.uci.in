@@ -1,0 +1,67 @@
+# REVIEW-ONLY delta for an EXISTING controller, rendered with the NEW site's values.
+# DO NOT import alongside network.uci, overwrite registries, or recreate wg_customers.
+# Check every generated section name and policy priority is free before applying.
+# Peer public key deliberately absent: supply only the new gateway's verified key.
+config wireguard_wg_customers '@SERVER_PEER_SECTION@'
+ option description 'Additional maintenance gateway'
+ option disabled '0'
+ option route_allowed_ips '0'
+ list allowed_ips '@CLIENT_WG_IP@/32'
+
+config route '@SERVER_PEER_SECTION@_route'
+ option interface 'wg_customers'
+ option target '@CLIENT_WG_IP@/32'
+
+# 1703 was available in the tested deployment; choose/check before using elsewhere.
+config rule '@SERVER_PEER_SECTION@_policy'
+ option priority '1703'
+ option src '@PRIVATE_LAN_CIDR@'
+ option dest '@HOME_CIDR@'
+ option lookup 'main'
+
+# Firewall delta: only safe AFTER the existing early guard/known sets are extended
+# to the new private LAN and exact management /32; business remains leased and OFF.
+config rule '@SERVER_PEER_SECTION@_ping'
+ option src 'knx'
+ option src_ip '@CLIENT_WG_IP@'
+ option dest_ip '@SERVER_WG_IP@'
+ option proto 'icmp'
+ option family 'ipv4'
+ option target 'ACCEPT'
+
+config rule '@SERVER_PEER_SECTION@_manage'
+ option src 'lan'
+ option dest 'knx'
+ option src_ip '@HOME_CIDR@'
+ option dest_ip '@CLIENT_WG_IP@/32'
+ option proto 'tcp'
+ option dest_port '22 80'
+ option family 'ipv4'
+ option target 'ACCEPT'
+
+config rule '@SERVER_PEER_SECTION@_mgmt_ping'
+ option src 'lan'
+ option dest 'knx'
+ option src_ip '@HOME_CIDR@'
+ option dest_ip '@CLIENT_WG_IP@/32'
+ option proto 'icmp'
+ option family 'ipv4'
+ option target 'ACCEPT'
+
+config rule '@SERVER_PEER_SECTION@_to_home'
+ option src 'knx'
+ option dest 'lan'
+ option src_ip '@PRIVATE_LAN_CIDR@'
+ option dest_ip '@HOME_CIDR@'
+ option proto 'all'
+ option family 'ipv4'
+ option target 'ACCEPT'
+
+config rule '@SERVER_PEER_SECTION@_from_home'
+ option src 'lan'
+ option dest 'knx'
+ option src_ip '@HOME_CIDR@'
+ option dest_ip '@PRIVATE_LAN_CIDR@'
+ option proto 'all'
+ option family 'ipv4'
+ option target 'ACCEPT'

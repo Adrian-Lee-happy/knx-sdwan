@@ -1,0 +1,19 @@
+name: 客户 C 远程维护
+version: "0.1.2"
+slug: ha_remote_node
+description: 单向远程维护节点；本地许可与业务授权分离
+arch:
+  - aarch64
+startup: services
+boot: auto
+init: false
+timeout: 30
+host_network: true
+privileged:
+  - NET_ADMIN
+hassio_api: false
+homeassistant_api: false
+docker_api: false
+options: {}
+schema: {}
+stage: experimental

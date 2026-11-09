@@ -1,0 +1,11 @@
+{
+  "network": {
+    "home": "10.60.0.0/24",
+    "tunnel": "10.62.0.13",
+    "server": "10.62.0.1",
+    "physical_interface": "end0"
+  },
+  "endpoint_host": "vpn.example.invalid",
+  "endpoint_port": 51821,
+  "server_public_key": "REPLACE_WITH_SERVER_PUBLIC_KEY"
+}

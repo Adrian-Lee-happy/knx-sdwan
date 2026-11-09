@@ -13,6 +13,7 @@ PREFIXES = ('src/', 'integration/', 'config/', 'docs/', 'tools/', 'tests/')
 SAFE_IPS = {
     '0.0.0.0', '10.0.0.0', '172.16.0.0', '192.168.0.0',
     '1.1.1.1', '1.0.0.1', '223.5.5.5', '223.6.6.6',
+    '127.0.0.1', '172.30.32.0', '172.30.232.0',
 }
 EXAMPLE_POOLS = tuple(ipaddress.ip_network(s) for s in ('10.60.0.0/24', '10.61.1.0/24', '10.62.0.0/24', '10.63.1.0/24'))
 RULES = {
@@ -76,7 +77,9 @@ def audit(root=ROOT):
             if literal not in SAFE_IPS and not any(a in pool for pool in EXAMPLE_POOLS):
                 errors.append(rel + ': unapproved IPv4 literal (value omitted)')
         for host in re.findall(r'https?://([A-Za-z0-9.-]+)', text):
-            if host not in {'github.com', 'cloudflare-dns.com', 'dns.alidns.com'} and not host.endswith('.invalid'):
+            if host not in {'github.com', 'cloudflare-dns.com', 'dns.alidns.com', 'dns.google',
+                             'contributors.home-assistant.io', 'www.home-assistant.io',
+                             '127.0.0.1', '10.62.0.13'} and not host.endswith('.invalid'):
                 errors.append(rel + ': unapproved URL host (value omitted)')
         if re.search(r'https?' + r'://github[.]com/(?:settings/tokens|login/device[?])', text):
             errors.append(rel + ': authentication artifact')

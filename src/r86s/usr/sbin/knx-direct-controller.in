@@ -6,10 +6,13 @@ assert(type(id)=='string' and id:match('^[a-z][a-z0-9_-]*$')and clients[id],'unk
 local me=clients[id];local HOME='@HOME_CIDR@'
 local seen_tunnel,seen_peer={},{}
 for key,c in pairs(clients)do
- assert(c.id==key and type(c.peer)=='string'and c.peer:match('^[a-zA-Z0-9_]+$')and D.ipnum(c.tunnel)and D.overlap(c.tunnel..'/32','@WG_CIDR@')and D.private(c.lan),'invalid client registry')
+ assert(c.id==key and type(c.peer)=='string'and c.peer:match('^[a-zA-Z0-9_]+$')and D.ipnum(c.tunnel)and D.overlap(c.tunnel..'/32','@WG_CIDR@')and ((c.profile=='linux-ha-oneway' and c.lan==nil) or (c.profile==nil and D.private(c.lan))),'invalid client registry')
+ assert(c.agent_key==nil or (c.profile=='linux-ha-oneway' and c.agent_key=='/etc/knx-direct/'..c.id..'_id_ed25519'),'invalid agent key path')
+ assert(c.agent_port==nil or (type(c.agent_port)=='number' and c.agent_port%1==0 and c.agent_port>=1024 and c.agent_port<=65535),'invalid agent port')
  assert(not seen_tunnel[c.tunnel]and not seen_peer[c.peer],'duplicate customer identity')
  seen_tunnel[c.tunnel]=true;seen_peer[c.peer]=true
 end
+local function destinations(c,net) local r={net};if c.lan then r[#r+1]=c.lan end;return r end
 local activefile='/var/run/knx-direct-active.json'
 local lock=D.lock('/var/lock/knx-customer-global.lock')
 local function mode(c) if D.uci('network.'..c.peer..'.disabled')=='1'then return'disconnect'end;local s=D.fs.readfile('/etc/knx-customers/'..c.id..'-state')or'off';return s:match('^(%a+)')or'off'end
@@ -18,9 +21,10 @@ local function pub(c)return assert(D.uci('network.'..c.peer..'.public_key'),'cus
 local function present(c)local _,s=D.run('/usr/bin/wg',{'show','wg_customers','peers'});return s:find(pub(c),1,true)~=nil end
 local function remote(c,method,payload)
  D.n.setenv('HOME','/root')
- local args={'-T','-i','/etc/knx-direct/id_ed25519','-o','BatchMode=yes','-o','PasswordAuthentication=no','-o','StrictHostKeyChecking=yes','-K','2','-I','5','root@'..c.tunnel,method}
+ local args={'-T','-i',c.agent_key or '/etc/knx-direct/id_ed25519','-o','BatchMode=yes','-o','PasswordAuthentication=no','-o','StrictHostKeyChecking=yes','-K','2','-I','5','root@'..c.tunnel,method}
+ if c.agent_port then table.insert(args,2,'-p');table.insert(args,3,tostring(c.agent_port))end
  table.insert(args,2,'-b');table.insert(args,3,'@SERVER_WG_IP@')
- local rc,out=D.run('/usr/bin/dbclient',args,D.json.stringify(payload or {}),8);local v=D.json.parse(out)
+ local rc,out=D.run('/usr/bin/dbclient',args,payload and D.json.stringify(payload)or'{}',8);local v=D.json.parse(out)
  return rc==0 and type(v)=='table' and v.success==true and v or nil
 end
 local function allowed(c,nets)
@@ -37,7 +41,7 @@ local function ensure_peer(c)
 end
 local function conflict(c,net)
  if not D.private(net)then return'unsupported customer subnet'end
- for _,r in pairs(clients)do for _,reserved in ipairs({HOME,'@WG_CIDR@',r.lan,r.tunnel..'/32'})do if D.overlap(net,reserved)then return'overlaps home, customer LAN or management network'end end end
+ for _,r in pairs(clients)do local reserved_nets={HOME,'@WG_CIDR@',r.tunnel..'/32'};if r.lan then reserved_nets[#reserved_nets+1]=r.lan end;for _,reserved in ipairs(reserved_nets)do if D.overlap(net,reserved)then return'overlaps home, customer LAN or management network'end end end
  local rc,text=D.run('/sbin/ip',{'-j','-4','route','show','table','all'});local routes=D.json.parse(text)
  if rc~=0 or type(routes)~='table'then return'route inspection unavailable'end
  for _,r in ipairs(routes)do
@@ -93,7 +97,7 @@ local function conflict(c,net)
 end
 local function known(add)
  local list=D.read('/etc/knx-direct/known.json',{});local seen={};local all={}
- for _,c in pairs(clients)do seen[c.lan]=true;all[#all+1]=c.lan end
+ for _,c in pairs(clients)do if c.lan then seen[c.lan]=true;all[#all+1]=c.lan end end
  for _,p in ipairs(list)do if D.private(p)and not seen[p]then seen[p]=true;all[#all+1]=p end end
  if add and not seen[add]then list[#list+1]=add;D.write('/etc/knx-direct/known.json',list);all[#all+1]=add end
  local definition='set knx_direct_known { type ipv4_addr; flags interval; auto-merge; elements = { '..table.concat(all,', ')..' }; }\n'
@@ -110,11 +114,11 @@ local function closeall()
  local old=D.read(activefile,{})
  if old.id and clients[old.id]and D.private(old.network)then
   local c=clients[old.id]
-  for _,p in ipairs({old.network,c.lan})do
+  for _,p in ipairs(destinations(c,old.network))do
    D.ip({'-4','route','del',p,'dev','wg_customers','proto','186','metric','189','table','191'},true)
    D.ct(HOME,p);D.ct(p,HOME)
   end
-  D.ip({'-4','rule','del','pref','1709','from',HOME,'to',c.lan,'lookup','191'},true)
+  if c.lan then D.ip({'-4','rule','del','pref','1709','from',HOME,'to',c.lan,'lookup','191'},true)end
   D.ip({'-4','rule','del','pref','1710','from',HOME,'to',old.network,'lookup','191'},true)
  end
  D.ip({'-4','route','del','unreachable','default','table','191','metric','42760'},true)
@@ -124,6 +128,22 @@ local function closeall()
   D.ct(HOME,c.lan);D.ct(c.lan,HOME)
   if mode(c)~='disconnect'then remote(c,'deactivate');setmode(c,'off')end
  end
+end
+-- A single-interface HA node must never close another customer's business.
+local function closeone(c)
+ local old=D.read(activefile,{})
+ if old.id==c.id then
+  D.nft('flush set inet fw4 knx_direct_lease\nflush set inet fw4 knx_a_business\nflush set inet fw4 knx_direct_lan')
+  if D.private(old.network)then
+   D.ip({'-4','route','del',old.network,'dev','wg_customers','proto','186','metric','189','table','191'},true)
+   D.ip({'-4','rule','del','pref','1710','from',HOME,'to',old.network,'lookup','191'},true)
+   D.ct(HOME,old.network);D.ct(old.network,HOME)
+  end
+  D.ip({'-4','route','del','unreachable','default','table','191','metric','42760'},true)
+  D.write(activefile,{})
+ end
+ allowed(c,{c.tunnel..'/32'})
+ if mode(c)~='disconnect'then remote(c,'deactivate');setmode(c,'off')end
 end
 local function prepare(c,report)
  if not report or not report.candidate then return nil,'candidate communication unavailable'end
@@ -143,7 +163,7 @@ local function refresh()
  for key,c in pairs(clients)do
   local report=mode(c)~='disconnect'and remote(c,'probe')or nil
   local v,why=prepare(c,report)
-  cache[key]={ready=v~=nil,candidate=v,reason=why,observed_at=os.time()}
+  cache[key]={ready=v~=nil,candidate=v,reason=why,observed_at=os.time(),local_consent=report and report.local_consent,observed_subnet=report and report.candidate and report.candidate.network}
   if a.id==key then
    if not v or v.fingerprint~=a.fingerprint or not report.active or not D.has('knx_direct_lease','"wg_customers"')then closeall();a={}
    elseif not remote(c,'renew',{fingerprint=v.fingerprint})then closeall();a={}
@@ -154,7 +174,7 @@ local function refresh()
 end
 local function output_status(c)
  local m=mode(c);local a=D.read(activefile,{})
- local on=a.id==c.id and D.has('knx_direct_lease','"wg_customers"')and D.has('knx_a_business',c.lan)
+ local on=a.id==c.id and D.has('knx_direct_lease','"wg_customers"')and D.has('knx_a_business',c.lan or a.network)
  print('customer='..c.id..' saved_state='..m..' configured_disabled='..(D.uci('network.'..c.peer..'.disabled')or'0'))
  if present(c)then
   print('runtime_peer=present');local _,s=D.run('/usr/bin/wg',{'show','wg_customers','latest-handshakes'});local stamp
@@ -164,14 +184,20 @@ local function output_status(c)
  print('business='..(on and'ON'or'OFF'))
  local cached=(D.read('/var/run/knx-direct-candidates.json',{})or{})[c.id]or{}
  print('candidate_ready='..tostring(cached.ready==true))
- print('candidate_subnet='..(cached.candidate and cached.candidate.network or'none'))
+ print('candidate_subnet='..(cached.candidate and cached.candidate.network or cached.observed_subnet or'none'))
+ if cached.local_consent~=nil then print('local_consent='..tostring(cached.local_consent))end
  print('candidate_reason='..(cached.reason or'none'))
 end
 local ok,err=pcall(function()
  if action=='status'then output_status(me);return end
  if action=='watch'then refresh();return end
  assert(action=='on'or action=='off'or action=='disconnect'or action=='reconnect'or action=='restore'or action=='reconcile','invalid action')
- closeall();known()
+ if me.profile=='linux-ha-oneway'then
+  local owner=D.read(activefile,{})
+  assert(action~='on' or not owner.id or owner.id==id,'another customer owns business; existing business preserved')
+  closeone(me)
+ else closeall()end
+ known()
  if action=='disconnect'then
   if present(me)then local _,s=D.run('/usr/bin/wg',{'show','wg_customers','endpoints'});for line in s:gmatch('[^\n]+')do local k,e=line:match('^(%S+)%s+(%S+)');if k==pub(me)then local f=assert(io.open('/etc/knx-customers/'..id..'-last-endpoint','w'));f:write(e..'\n');f:close()end end end
   D.must('/sbin/uci',{'set','network.'..me.peer..'.disabled=1'});D.must('/sbin/uci',{'commit','network'})
@@ -186,18 +212,19 @@ local ok,err=pcall(function()
   assert((trc==0 and tout:match('^%s*$'))or(trc~=0 and(tout:find('Dump terminated',1,true)or tout:find('FIB table does not exist',1,true))),'business route table conflict')
   local rules=D.ip({'-4','rule','show'})
   assert(not rules:match('\n1709:')and not rules:match('\n1710:'),'business policy priority conflict')
-  allowed(me,{me.tunnel..'/32',me.lan,v.network})
+  local nets=destinations(me,v.network);table.insert(nets,1,me.tunnel..'/32');allowed(me,nets)
   D.ip({'-4','route','add','unreachable','default','table','191','metric','42760'})
-  for _,p in ipairs({me.lan,v.network})do D.ip({'-4','route','add',p,'dev','wg_customers','proto','186','metric','189','table','191'})end
-  D.ip({'-4','rule','add','pref','1709','from',HOME,'to',me.lan,'lookup','191'})
+  for _,p in ipairs(destinations(me,v.network))do D.ip({'-4','route','add',p,'dev','wg_customers','proto','186','metric','189','table','191'})end
+  if me.lan then D.ip({'-4','rule','add','pref','1709','from',HOME,'to',me.lan,'lookup','191'})end
   D.ip({'-4','rule','add','pref','1710','from',HOME,'to',v.network,'lookup','191'})
-  D.nft('add element inet fw4 knx_a_business { '..me.lan..', '..v.network..' }\nadd element inet fw4 knx_direct_lan { '..me.lan..' }')
+  D.nft('add element inet fw4 knx_a_business { '..table.concat(destinations(me,v.network),', ')..' }')
+  if me.lan then D.nft('add element inet fw4 knx_direct_lan { '..me.lan..' }')end
   lease();setmode(me,'on');D.write(activefile,{id=id,network=v.network,fingerprint=v.fingerprint})
  end
  print('customer='..id..' state='..mode(me)..' action='..action..' OK')
 end)
 if not ok then
- if action~='status'then pcall(closeall)end
+ if action~='status'then if me.profile=='linux-ha-oneway'then pcall(closeone,me)else pcall(closeall)end end
  io.stderr:write('KNX refused operation; business OFF: '..tostring(err)..'\n')
 end
 lock:close();os.exit(ok and 0 or 1)

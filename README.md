@@ -6,6 +6,8 @@
 
 2026-11-07：增加第二台网关部署经验、fw4 Shell 回调修复、固定客户端 WG 端口和回复规则、独立 Dropbear 监听片段及提前拒绝 guard。见[第二客户增量部署](docs/additional-customer.md)和[本轮验证范围](docs/validation-2026-11-07.md)。第二客户仅完成管理与负向业务验收，不代表多客户真实业务切换已全面通过。
 
+2026-11-09：增加 Home Assistant 单向维护节点（客户 C）与 Supervisor 本地加载项 v0.1.2，含独立节点生命周期、HA 本地许可、LuCI 管理入口、信号退出修复和验证记录。见[HA 节点说明](docs/ha-maintenance-node.md)及[本轮验证范围](docs/validation-2026-11-09.md)。已完成管理侧验收，客户现场数据面尚未验收；本次发布不修改生产设备。
+
 ## 能力与边界
 
 - R86S 上统一控制 `on / off / disconnect / reconnect / status`。
@@ -30,6 +32,7 @@
 src/common/       两端共享 Lua 库、监控循环与 procd 服务
 src/r86s/         控制器、nft guard、LuCI View/RPC/ACL、管理例外
 src/cudy/         受限 Agent、WAN/WWAN 检测、DoH 刷新及 hotplug
+src/ha_node/      Supervisor 本地加载项、单向 Linux Agent、独立规则与本地许可
 integration/      人工审阅的 UCI 增量片段，不是完整设备配置
 config/           仅示例参数；真实 site.json 被忽略
 tools/            本地渲染与审计工具，不连接生产设备
@@ -66,6 +69,8 @@ LuCI：**服务 → KNX 客户维护**，路径 `/cgi-bin/luci/admin/services/kn
 
 ## 文档
 
+- [HA 单向维护节点与加载项](docs/ha-maintenance-node.md)
+- [HA 节点验证记录](docs/validation-2026-11-09.md)
 - [架构与状态机](docs/architecture.md)
 - [部署、验证和回滚](docs/deployment.md)
 - [安全模型与限制](docs/security.md)

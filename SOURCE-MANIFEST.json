@@ -11,7 +11,9 @@
       "source_basename": "knx-direct-controller.lua",
       "path": "src/r86s/usr/sbin/knx-direct-controller.in",
       "source_sha256": "acb0801b96d38733aa5d3f41ad0d959e4a05f922fe67e36039eaf5da0ef6657e",
-      "publication_sha256": "0d8e0ba5fb95eec8f7bb339d757c93992c9328f5d8470ef5767e603e68698c27"
+      "publication_sha256": "efdc4cbf0c06a12741c1c2610d816c8cc945174d0acb923bc89b40fab040bc8b",
+      "revision_source_sha256": "efdc4cbf0c06a12741c1c2610d816c8cc945174d0acb923bc89b40fab040bc8b",
+      "revision_note": "2026-11-09: reviewed HA node adapter; original baseline source hash retained."
     },
     {
       "source_basename": "knx-direct-wrapper.sh",
@@ -162,13 +164,17 @@
       "source_basename": "knx-luci-rpc.lua",
       "path": "src/r86s/usr/libexec/rpcd/knx.customer",
       "source_sha256": "67fa59fff582b5049df370ae0d72c26f1484344922bad5cbbe5615f7f964516b",
-      "publication_sha256": "67fa59fff582b5049df370ae0d72c26f1484344922bad5cbbe5615f7f964516b"
+      "publication_sha256": "916b28edd74c013ad861872cfce0ec1af68ce85dd846b69e37ba23ea1fd30f3b",
+      "revision_source_sha256": "916b28edd74c013ad861872cfce0ec1af68ce85dd846b69e37ba23ea1fd30f3b",
+      "revision_note": "2026-11-09: reviewed HA node adapter; original baseline source hash retained."
     },
     {
       "source_basename": "knx-luci-view.js",
       "path": "src/r86s/www/luci-static/resources/view/knx/maintenance.js",
       "source_sha256": "c75927a6e3e04c77355523672f6bab10aae029b02b73aeeeb527a4138a3adfa9",
-      "publication_sha256": "c75927a6e3e04c77355523672f6bab10aae029b02b73aeeeb527a4138a3adfa9"
+      "publication_sha256": "580ce95e43cadd33c88cc9944fe8f2d66e23005b8fca2665cdedcf8cd2aa9e0f",
+      "revision_source_sha256": "580ce95e43cadd33c88cc9944fe8f2d66e23005b8fca2665cdedcf8cd2aa9e0f",
+      "revision_note": "2026-11-09: reviewed HA node adapter; original baseline source hash retained."
     },
     {
       "source_basename": "knx-luci-menu.json",
@@ -187,11 +193,129 @@
       "path": "tests/luci-view.test.cjs",
       "source_sha256": "7d89bb6bc1d2de37bacd8a8e505584f58af43bc8c88bed1d1318f8a5b88aac48",
       "publication_sha256": "e9f25c4a7e4266223d6d27c30669df53b7cd75c8dee44b7b786a84540ef0fd95"
+    },
+    {
+      "source_basename": "node_policy.py",
+      "path": "src/ha_node/node_policy.py",
+      "source_sha256": "29e14f10420a48fa602ee135490ca9d590d12dfd3ba1f876f666eeb788478ca9",
+      "publication_sha256": "29e14f10420a48fa602ee135490ca9d590d12dfd3ba1f876f666eeb788478ca9",
+      "revision_note": "2026-11-09: local development snapshot; tests use example networks; no device secrets or private state."
+    },
+    {
+      "source_basename": "linux_backend.py",
+      "path": "src/ha_node/linux_backend.py",
+      "source_sha256": "fa27a0de1e2be1ac0ca7da394a1c8d1bb6b6fc83cb79b018fc7b3627c0b046fb",
+      "publication_sha256": "fa27a0de1e2be1ac0ca7da394a1c8d1bb6b6fc83cb79b018fc7b3627c0b046fb",
+      "revision_note": "2026-11-09: local development snapshot; tests use example networks; no device secrets or private state."
+    },
+    {
+      "source_basename": "agent_runtime.py",
+      "path": "src/ha_node/agent_runtime.py",
+      "source_sha256": "dbf0c747638f8a4bf2cd290e8b3eaa77f06c5debdf7b2ce807ccc74673bb9ebf",
+      "publication_sha256": "dbf0c747638f8a4bf2cd290e8b3eaa77f06c5debdf7b2ce807ccc74673bb9ebf",
+      "revision_note": "2026-11-09: local development snapshot; tests use example networks; no device secrets or private state."
+    },
+    {
+      "source_basename": "agent_service.py",
+      "path": "src/ha_node/agent_service.py",
+      "source_sha256": "7923222f41b33de4351603c1cc2a159af7cd40ecedc04acdbcf491bd988b6aa0",
+      "publication_sha256": "7923222f41b33de4351603c1cc2a159af7cd40ecedc04acdbcf491bd988b6aa0",
+      "revision_note": "2026-11-09: local development snapshot; tests use example networks; no device secrets or private state."
+    },
+    {
+      "source_basename": "bootstrap.py",
+      "path": "src/ha_node/bootstrap.py",
+      "source_sha256": "02b1e9ee029874de27daa55498019d092900c9264814cbc4f339225027a35e2c",
+      "publication_sha256": "02b1e9ee029874de27daa55498019d092900c9264814cbc4f339225027a35e2c",
+      "revision_note": "2026-11-09: local development snapshot; tests use example networks; no device secrets or private state."
+    },
+    {
+      "source_basename": "healthcheck.py",
+      "path": "src/ha_node/healthcheck.py",
+      "source_sha256": "00a95860e85cc593916a3ef911f7a61df8519a5ae0f36bf75428ac6db7115b22",
+      "publication_sha256": "00a95860e85cc593916a3ef911f7a61df8519a5ae0f36bf75428ac6db7115b22",
+      "revision_note": "2026-11-09: local development snapshot; tests use example networks; no device secrets or private state."
+    },
+    {
+      "source_basename": "process_supervisor.py",
+      "path": "src/ha_node/process_supervisor.py",
+      "source_sha256": "d0e44cab5b2e1180dd88b2c7262412c2b568b31d258f91b7126fdd45a2a2df27",
+      "publication_sha256": "d0e44cab5b2e1180dd88b2c7262412c2b568b31d258f91b7126fdd45a2a2df27",
+      "revision_note": "2026-11-09: local development snapshot; tests use example networks; no device secrets or private state."
+    },
+    {
+      "source_basename": "Dockerfile",
+      "path": "src/ha_node/Dockerfile",
+      "source_sha256": "78df38ba112b3614d005bb4bcfc84012da81bd75a127ba3c72e9c2429539ce98",
+      "publication_sha256": "78df38ba112b3614d005bb4bcfc84012da81bd75a127ba3c72e9c2429539ce98",
+      "revision_note": "2026-11-09: local development snapshot; tests use example networks; no device secrets or private state."
+    },
+    {
+      "source_basename": "config.yaml",
+      "path": "src/ha_node/config.yaml",
+      "source_sha256": "28f8d7853a7a4524867bdf0c1a5f209119f850c3bafdbbb77f0d6bfc0ea45eb0",
+      "publication_sha256": "28f8d7853a7a4524867bdf0c1a5f209119f850c3bafdbbb77f0d6bfc0ea45eb0",
+      "revision_note": "2026-11-09: local development snapshot; tests use example networks; no device secrets or private state."
+    },
+    {
+      "source_basename": "DOCS.md",
+      "path": "src/ha_node/DOCS.md",
+      "source_sha256": "256c74f05532fbd6ffe9743caf411a3db4ecee4d6481281b125627cbc3290aef",
+      "publication_sha256": "0bc96109772a403e6b4f3cab14c8c03e6a21895dfe5bbd62a1e83b05a358b49c",
+      "revision_note": "2026-11-09: local development snapshot; tests use example networks; no device secrets or private state."
+    },
+    {
+      "source_basename": "test_node_policy.py",
+      "path": "tests/test_ha_node_policy.py",
+      "source_sha256": "8646b7493651c82d7e50ef4c1b70334ab2df90a2027c5912bb3485480fcdd9dc",
+      "publication_sha256": "a66af70e20ff831387e0ed7c43426cfcd6635daab1c1b0801b0dfc0d1da494d2",
+      "revision_note": "2026-11-09: local development snapshot; tests use example networks; no device secrets or private state."
+    },
+    {
+      "source_basename": "test_linux_backend.py",
+      "path": "tests/test_ha_linux_backend.py",
+      "source_sha256": "4d8c4cdad573ed83235e6b1d5aee5c004cf4c11984c21cafe347b3fd20029152",
+      "publication_sha256": "18c57bf3937d5ab189d7ae8beb2a42df5814ab453bb31c88365fa6d75113812e",
+      "revision_note": "2026-11-09: local development snapshot; tests use example networks; no device secrets or private state."
+    },
+    {
+      "source_basename": "test_agent_runtime.py",
+      "path": "tests/test_ha_agent_runtime.py",
+      "source_sha256": "6bdd10170001ef85cc4499b0b1f8af08d674fca62045a0f4a2dc9675ac3e97d6",
+      "publication_sha256": "0d8b937bdfae1f8181937ecf73158a0cad8f606777a3b1a7b10e776b8efc7be9",
+      "revision_note": "2026-11-09: local development snapshot; tests use example networks; no device secrets or private state."
+    },
+    {
+      "source_basename": "test_process_supervisor.py",
+      "path": "tests/test_ha_process_supervisor.py",
+      "source_sha256": "ef266b629ff7c26a3a2b1fcd2d5c83780c685fdaf460a355d384d06e7c95b1a7",
+      "publication_sha256": "f9b741214065d491d5f0383a9a5e28a835db94bfc65913d124637dffa6c52eb1",
+      "revision_note": "2026-11-09: local development snapshot; tests use example networks; no device secrets or private state."
+    },
+    {
+      "source_basename": "test_controller_adapter.py",
+      "path": "tests/test_ha_controller_adapter.py",
+      "source_sha256": "499ea6b2811be86af9bce807f84da768d61f3dd2016585a2fde71620083ee98f",
+      "publication_sha256": "e75a7730d6dbad19ae0ce41527539a615e368045c6d7b4947bee8d29c80f3c76",
+      "revision_note": "2026-11-09: local development snapshot; tests use example networks; no device secrets or private state."
+    },
+    {
+      "source_basename": "package.yaml",
+      "path": "integration/ha-node/package.yaml",
+      "source_sha256": "29f3c85b1e89ef61377ce012c5b619c311fd9ec7095f34c0269f6a983de2a62d",
+      "publication_sha256": "29f3c85b1e89ef61377ce012c5b619c311fd9ec7095f34c0269f6a983de2a62d",
+      "revision_note": "2026-11-09: local development snapshot; tests use example networks; no device secrets or private state."
     }
   ],
   "compatibility_update_20261107": {
     "description": "Generic source changes and documentation only; no production installer, credentials, site config or raw logs included.",
     "new_adapter": "src/cudy/usr/sbin/knx-direct-reset",
     "validation_scope": "Second gateway management and negative activation checks; real second-site business and multi-site positive switching remain unverified."
+  },
+  "ha_node_update_20261109": {
+    "version": "0.1.2",
+    "scope": "Managed HA single-direction node, optional controller profile, local consent, signal cleanup and migration evidence.",
+    "validation_scope": "Management verified; real customer LAN, packet/session isolation and full host boot after migration remain unverified.",
+    "publication_changes": "Whitelist extraction, example-address substitutions in tests, repository import paths and authored documentation. Not redeployed by publication."
   }
 }

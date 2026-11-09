@@ -1,0 +1,31 @@
+switch:
+  - platform: rest
+    name: Customer C Remote Permission
+    unique_id: ha_remote_node_c_permission
+    resource: http://127.0.0.1:8766/consent
+    method: post
+    headers:
+      Authorization: !secret ha_remote_c_authorization
+      Content-Type: application/json
+    body_on: '{"enabled":true}'
+    body_off: '{"enabled":false}'
+    is_on_template: "{{ value_json.enabled }}"
+    timeout: 5
+rest:
+  - resource: http://127.0.0.1:8766/consent
+    headers:
+      Authorization: !secret ha_remote_c_authorization
+    scan_interval: 10
+    timeout: 5
+    binary_sensor:
+      - name: Customer C Remote Business
+        unique_id: ha_remote_node_c_business
+        value_template: "{{ value_json.business }}"
+homeassistant:
+  customize:
+    switch.customer_c_remote_permission:
+      friendly_name: 客户 C 远程维护许可
+      icon: mdi:shield-key
+    binary_sensor.customer_c_remote_business:
+      friendly_name: 客户 C 远程业务已开启
+      icon: mdi:lan-connect

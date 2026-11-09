@@ -85,7 +85,7 @@ end
 local function status(c)
  local rc, text = run('/usr/sbin/knx-customer', {c.id, 'status'})
  local s = {id=c.id, name=c.name, notes=c.notes, metadata_revision=tonumber(c.metadata_revision) or 0, model=c.model,
-  tunnel_ip=c.tunnel_ip, lan=c.lan, control_enabled=c.control_enabled==true,
+  tunnel_ip=c.tunnel_ip, lan=c.lan, profile=c.profile, control_enabled=c.control_enabled==true,
   configured=false, enabled=false, peer_present=false, vpn_state='unknown',
   business_state='UNKNOWN', observed_at=os.time(), status_ok=rc==0}
  local cfg_rc, cfg = run('/sbin/uci', {'-q','get','network.'..c.peer_section})
@@ -93,6 +93,7 @@ local function status(c)
  local saved = text:match('saved_state=([a-z]+)')
  local disabled = text:match('configured_disabled=([01])')
  local business = text:match('business=([A-Z]+)')
+ local consent=text:match('local_consent=(%a+)');if consent=='true' or consent=='false'then s.local_consent=consent=='true'end
  local ready = text:match('candidate_ready=(%a+)')
  if ready=='true' or ready=='false' then s.candidate_ready=ready=='true' end
  local subnet = text:match('candidate_subnet=([^\r\n]+)')

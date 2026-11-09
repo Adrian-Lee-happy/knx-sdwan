@@ -139,7 +139,11 @@ return view.extend({
    row('设备型号',c.model);
    row('完整备注',c.notes || '暂无备注');
    row('WG 隧道 IP',c.tunnel_ip);
-   row('Cudy 下挂 LAN',c.lan);
+   if(c.profile==='linux-ha-oneway'){
+    row('接入方式','HA 单向维护节点；仅允许维护侧发起访问');
+    row('HA 本地许可',c.local_consent===true?'允许申请远程业务':c.local_consent===false?'已关闭':'暂未确认');
+    if(/^([0-9]{1,3}\.){3}[0-9]{1,3}$/.test(c.tunnel_ip||''))rows.push(E('div',{class:'knx-row'},[E('strong',{},'HA 管理入口'),E('a',{href:'http://'+c.tunnel_ip+'/',target:'_blank',rel:'noopener noreferrer',class:'btn'},'打开 Home Assistant')]));
+   }else row('Cudy 下挂 LAN',c.lan);
    row('客户真实网段',candidateText(c));
    if (c.candidate_ready===false) row('当前不可开启原因',c.current_rejection_reason || c.candidate_reason || 'No specific reason is available; refresh status.');
    row('VPN 配置 / 启用',(c.configured?'已配置':'未配置')+' / '+(c.enabled?'已启用':'已禁用'));
